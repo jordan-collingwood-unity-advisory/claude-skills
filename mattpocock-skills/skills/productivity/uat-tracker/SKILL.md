@@ -27,8 +27,8 @@ Everything read before the rewind point stays in context for every later session
 | Command | What it does |
 | --- | --- |
 | `rows <config> <workbook>` | Prints every row as one JSON line: ID, feedback, status, response, priority, owner, issue |
-| `ids <config> <workbook>` | Gives each row that has feedback and no ID the next ID: one more than the largest in the column, never reused |
-| `write <config> <workbook> --id N [--id M] [--status S] [--response TEXT --by INITIALS] [--issue URL]` | Sets status, adds a response line, links an issue, on each row named |
+| `ids <config> <workbook>` | Gives each row that has feedback and no UID the next one: the config's prefix and one more than the largest number in the column, such as `ID_148`, never reused |
+| `write <config> <workbook> --id UID [--id UID] [--status S] [--response TEXT --by INITIALS] [--issue URL]` | Sets status, adds a response line, links an issue, on each row named by its UID |
 
 Every write refuses while the file is open in Excel, backs the workbook up to the config's `output_dir`, reads each cell at the moment it writes it, and checks that the sheet's dropdowns, conditional formats and tabs survive. A response goes on top of the cell as `- 16 Nov, BS - <text>`, newest first, with earlier entries kept below; the script adds the date and initials. Run each write with `--copy` first: it writes to a copy and prints every cell that changed. Check that list, then run the same command on the sheet.
 
@@ -38,7 +38,7 @@ A response is one line: what was found and the next step. Anything longer goes i
 
 When the project has no `docs/agents/uat-tracker.json`, read [CONFIG-FORMAT.md](CONFIG-FORMAT.md), read the sheet's header row and its owner and priority values, propose the file, and write it on the user's yes.
 
-The sheet needs an ID column. When it has none, ask the user to add one by hand: a person changes the layout of a client's sheet, and the script only fills cells.
+The sheet needs a UID column. When it has none, ask the user to add one by hand: a person changes the layout of a client's sheet, and the script only fills cells. To stop people typing over UIDs, the user can give the column a Custom data validation with the formula `=FALSE`: Excel then refuses typed entries, while the script, which writes the file directly, and sorting and filtering are unaffected. Sheet protection is the wrong tool here, because Excel will not sort a protected range that holds locked cells.
 
 ## Plan
 

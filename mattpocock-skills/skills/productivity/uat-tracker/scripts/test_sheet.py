@@ -16,6 +16,7 @@ SCRIPT = Path(__file__).with_name("sheet.py")
 CONFIG = {
     "workbook": "test",
     "output_dir": "out",
+    "id_prefix": "ID_",
     "sheet": {
         "tab": "Feedback Log",
         "columns": {
@@ -38,7 +39,7 @@ def build(folder: Path) -> Path:
     book.create_sheet("Names")
     sheet.append(["UAT feedback"])
     sheet.append(["Feedback", "ID", "Status", "Response", "Priority", "Assigned to", "Tracker issue"])
-    sheet.append(["Price wrong", 4, "Open", "Earlier note", 1, "B", None])
+    sheet.append(["Price wrong", "ID_4", "Open", "Earlier note", 1, "B", None])
     sheet.append(["Map missing", None, None, None, 2, "B", "https://tracker/ENG-1"])
     sheet.append([None, None, None, None, None, None, None])
     sheet.append(["Logo blurry", None, "Open", None, 3, None, None])
@@ -72,40 +73,43 @@ def main() -> None:
         # A copy run changes only the copy
         result = run(folder, "ids", *base, "--copy")
         assert result.returncode == 0, result.stderr
-        assert cell(workbook, "B4") is None and "B4: None -> 5" in result.stdout
+        assert cell(workbook, "B4") is None and "B4: None -> 'ID_5'" in result.stdout
 
-        # IDs continue from the largest, skipping the blank row
+        # UIDs continue from the largest, with the prefix, skipping the blank row
         result = run(folder, "ids", *base)
         assert result.returncode == 0, result.stderr
-        assert (cell(workbook, "B4"), cell(workbook, "B6")) == (5, 6)
+        assert (cell(workbook, "B4"), cell(workbook, "B6")) == ("ID_5", "ID_6")
 
         # A response goes on top, signed and dated, with the earlier note kept below
-        result = run(folder, "write", *base, "--id", "4", "--status", "In progress", "--response", "Found the cause", "--by", "SE")
+        result = run(folder, "write", *base, "--id", "ID_4", "--status", "In progress", "--response", "Found the cause", "--by", "SE")
         assert result.returncode == 0, result.stderr
         today = date.today()
         assert cell(workbook, "D3") == f"- {today.day} {today:%b}, SE - Found the cause\nEarlier note"
         assert cell(workbook, "C3") == "In progress"
 
         # An unknown status is refused and nothing is saved
-        result = run(folder, "write", *base, "--id", "4", "--status", "Done")
+        result = run(folder, "write", *base, "--id", "ID_4", "--status", "Done")
         assert result.returncode != 0 and cell(workbook, "C3") == "In progress"
 
         # A different issue link is refused; the same one is accepted
-        assert run(folder, "write", *base, "--id", "5", "--issue", "https://tracker/ENG-2").returncode != 0
-        assert run(folder, "write", *base, "--id", "5", "--issue", "https://tracker/ENG-1").returncode == 0
+        assert run(folder, "write", *base, "--id", "ID_5", "--issue", "https://tracker/ENG-2").returncode != 0
+        assert run(folder, "write", *base, "--id", "ID_5", "--issue", "https://tracker/ENG-1").returncode == 0
 
-        # Duplicate IDs stop the ID run
+        # Duplicate UIDs, or a UID without the prefix, stop the ID run
         book = openpyxl.load_workbook(workbook)
-        book["Feedback Log"]["B6"] = 4
+        book["Feedback Log"]["B6"] = "ID_4"
         book.save(workbook)
-        assert "Duplicate IDs [4]" in run(folder, "ids", *base).stderr
+        assert "Duplicate UIDs ['ID_4']" in run(folder, "ids", *base).stderr
         book["Feedback Log"]["B6"] = 6
+        book.save(workbook)
+        assert "does not start with 'ID_'" in run(folder, "ids", *base).stderr
+        book["Feedback Log"]["B6"] = "ID_6"
         book.save(workbook)
 
         # Excel's lock file stops a real write but not a copy run
         (folder / "~$feedback.xlsx").write_text("")
-        assert "open in Excel" in run(folder, "write", *base, "--id", "6", "--status", "Closed").stderr
-        assert run(folder, "write", *base, "--id", "6", "--status", "Closed", "--copy").returncode == 0
+        assert "open in Excel" in run(folder, "write", *base, "--id", "ID_6", "--status", "Closed").stderr
+        assert run(folder, "write", *base, "--id", "ID_6", "--status", "Closed", "--copy").returncode == 0
         assert cell(workbook, "C6") == "Open"
 
         # The layout survived every write

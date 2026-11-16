@@ -6,10 +6,11 @@ The project's description of its UAT feedback sheet. It is committed and shared 
 {
   "workbook": "Shared drive: UAT/Feedback.xlsx",
   "output_dir": ".uat-tracker",
+  "id_prefix": "ID_",
   "sheet": {
     "tab": "Feedback Log",
     "columns": {
-      "id": "ID",
+      "id": "UID",
       "feedback": "Feedback",
       "status": "Status",
       "response": "Response",
@@ -32,6 +33,7 @@ The project's description of its UAT feedback sheet. It is committed and shared 
 | --- | --- |
 | `workbook` | Where the team keeps the sheet, as people would find it. Each user's absolute path differs, so the plan session asks for it and records it in the `rewind-durable` file. |
 | `output_dir` | A folder in the project for backups and copies. Add it to `.gitignore`: it holds copies of the client's sheet. |
+| `id_prefix` | The text before each row's number in its UID cell, so `"ID_"` gives `ID_1`, `ID_2`. An empty string gives bare numbers. A UID cell without it stops the script. |
 | `sheet.tab` | The worksheet holding the rows. |
 | `sheet.columns` | Each column's header text, exactly as the header row reads. The script finds the header row as the first row holding all of them, so columns may move. |
 | `statuses` | The words the sheet's Status column uses for open, in progress and closed. A blank status counts as open. |

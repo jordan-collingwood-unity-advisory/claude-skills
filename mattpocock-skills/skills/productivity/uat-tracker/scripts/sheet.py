@@ -2,8 +2,8 @@
 
 Run from the project root:
   rows  <config> <workbook>            print every row with feedback as one JSON line
-  ids   <config> <workbook> [--copy]   give each row with feedback and no ID the next ID
-  write <config> <workbook> --id N [--id M ...] [--status S] [--response TEXT --by INITIALS] [--issue URL] [--copy]
+  ids   <config> <workbook> [--copy]   give each row with feedback and no UID the prefix and the next number
+  write <config> <workbook> --id UID [--id UID ...] [--status S] [--response TEXT --by INITIALS] [--issue URL] [--copy]
 A write backs the workbook up first and prints every cell it changed; --copy writes to a copy instead.
 """
 
@@ -40,28 +40,38 @@ def read_rows(sheet: Worksheet, config: dict) -> tuple[dict[str, int], list[dict
     return columns, rows
 
 
+def uid_number(uid: object, prefix: str) -> int:
+    """Return the number after the configured prefix in a UID cell, such as 12 from "ID_12"."""
+    text = str(uid)
+    if not text.startswith(prefix):
+        raise SystemExit(f"UID {text!r} does not start with {prefix!r}; fix it in the sheet first. Nothing saved.")
+    return int(text[len(prefix):])
+
+
 def assign_ids(sheet: Worksheet, config: dict) -> list[str]:
-    """Give each row with no ID the next number after the largest ID in the column; refuse duplicate IDs."""
+    """Give each row with no UID the prefix and the next number after the largest in the column; refuse duplicates."""
+    prefix = config["id_prefix"]
     columns, rows = read_rows(sheet, config)
-    existing = [int(row["id"]) for row in rows if row["id"] not in (None, "")]
-    duplicates = sorted({row_id for row_id in existing if existing.count(row_id) > 1})
+    existing = [uid_number(row["id"], prefix) for row in rows if row["id"] not in (None, "")]
+    duplicates = sorted({f"{prefix}{number}" for number in existing if existing.count(number) > 1})
     if duplicates:
-        raise SystemExit(f"Duplicate IDs {duplicates}; fix them in the sheet first. Nothing saved.")
-    next_id = max(existing, default=0) + 1
+        raise SystemExit(f"Duplicate UIDs {duplicates}; fix them in the sheet first. Nothing saved.")
+    next_number = max(existing, default=0) + 1
     messages = []
     for row in rows:
         if row["id"] in (None, ""):
-            sheet.cell(row["row"], columns["id"]).value = next_id
-            messages.append(f"sheet row {row['row']}: ID {next_id}")
-            next_id += 1
+            uid = f"{prefix}{next_number}"
+            sheet.cell(row["row"], columns["id"]).value = uid
+            messages.append(f"sheet row {row['row']}: {uid}")
+            next_number += 1
     return messages
 
 
-def find_row(rows: list[dict], row_id: int) -> dict:
-    """Return the one row carrying this ID."""
-    matches = [row for row in rows if row["id"] not in (None, "") and int(row["id"]) == row_id]
+def find_row(rows: list[dict], uid: str) -> dict:
+    """Return the one row whose UID cell reads exactly this text."""
+    matches = [row for row in rows if str(row["id"]) == uid]
     if len(matches) != 1:
-        raise SystemExit(f"ID {row_id} matches {len(matches)} rows, not one. Nothing saved.")
+        raise SystemExit(f"UID {uid} matches {len(matches)} rows, not one. Nothing saved.")
     return matches[0]
 
 
@@ -76,8 +86,8 @@ def write_rows(sheet: Worksheet, config: dict, args: argparse.Namespace) -> list
     columns, rows = read_rows(sheet, config)
     today = date.today()
     messages = []
-    for row_id in args.id:
-        number = find_row(rows, row_id)["row"]
+    for uid in args.id:
+        number = find_row(rows, uid)["row"]
         if args.status:
             sheet.cell(number, columns["status"]).value = args.status
         if args.response:
@@ -89,9 +99,9 @@ def write_rows(sheet: Worksheet, config: dict, args: argparse.Namespace) -> list
         if args.issue:
             cell = sheet.cell(number, columns["issue"])
             if cell.value not in (None, "", args.issue):
-                raise SystemExit(f"ID {row_id} already links {cell.value!r}. Nothing saved.")
+                raise SystemExit(f"{uid} already links {cell.value!r}. Nothing saved.")
             cell.value = args.issue
-        messages.append(f"ID {row_id} (sheet row {number}) written")
+        messages.append(f"{uid} (sheet row {number}) written")
     return messages
 
 
@@ -155,7 +165,7 @@ def main() -> None:
         if name != "rows":
             command.add_argument("--copy", action="store_true", help="write to a copy in output_dir")
     write = commands.choices["write"]
-    write.add_argument("--id", type=int, action="append", required=True)
+    write.add_argument("--id", action="append", required=True, help="a row's UID as the sheet shows it; repeat for several rows")
     write.add_argument("--status")
     write.add_argument("--response")
     write.add_argument("--by", help="the writer's initials, signed on the response")
