@@ -1,0 +1,76 @@
+---
+name: uat-tracker
+description: Work your share of a client's UAT feedback sheet. Plan your open rows into investigation groups, raise a tracker issue per group, then fix one group per rewind and write each row's status and response back to the sheet.
+disable-model-invocation: true
+---
+
+# UAT tracker
+
+During user-acceptance testing the client's testers log feedback as rows in a shared spreadsheet, each with a priority and an owner. This skill is how one owner works their share: their open rows become a **worklist** of investigation groups, each group gets one tracker issue, and the groups are worked one per rewind until every row is closed with a response the testers can read.
+
+The sheet is the client's and other people edit it while you work. Read it fresh every time, and let the bundled script be its only writer.
+
+The work is a series of sessions around one **rewind point**, set at the end of planning:
+
+| Session | What it does | Ends with |
+| --- | --- | --- |
+| Plan | Reads the sheet and agrees the worklist with the user | The rewind point |
+| Issues | Raises a tracker issue per group | A rewind to the point |
+| Work | Works one group, or several once few remain | A commit and a rewind to the point |
+
+Everything read before the rewind point stays in context for every later session, so planning stays light and the deep research happens inside each group's own session. A session ends by calling the Skill tool with "prepare-rewind"; the user rewinds to the rewind point and resumes with carry-on-rewind.
+
+## The sheet script
+
+`scripts/sheet.py` reads and writes the sheet. Run it from the project root with a Python that has `openpyxl`:
+
+| Command | What it does |
+| --- | --- |
+| `rows <config> <workbook>` | Prints every row as one JSON line: ID, feedback, status, response, priority, owner, issue |
+| `ids <config> <workbook>` | Gives each row that has feedback and no ID the next ID: one more than the largest in the column, never reused |
+| `write <config> <workbook> --id N [--id M] [--status S] [--response TEXT --by INITIALS] [--issue URL]` | Sets status, adds a response line, links an issue, on each row named |
+
+Every write refuses while the file is open in Excel, backs the workbook up to the config's `output_dir`, reads each cell at the moment it writes it, and checks that the sheet's dropdowns, conditional formats and tabs survive. A response goes on top of the cell as `- 16 Nov, BS - <text>`, newest first, with earlier entries kept below; the script adds the date and initials. Run each write with `--copy` first: it writes to a copy and prints every cell that changed. Check that list, then run the same command on the sheet.
+
+A response is one line: what was found and the next step. Anything longer goes in the issue, or in a message drafted for the user to send.
+
+## Set up
+
+When the project has no `docs/agents/uat-tracker.json`, read [CONFIG-FORMAT.md](CONFIG-FORMAT.md), read the sheet's header row and its owner and priority values, propose the file, and write it on the user's yes.
+
+The sheet needs an ID column. When it has none, ask the user to add one by hand: a person changes the layout of a client's sheet, and the script only fills cells.
+
+## Plan
+
+1. **Who and where.** Ask which owner the user is and where the workbook sits on this machine, unless the stream's `rewind-durable` file already records both, and record the answers there.
+2. **Read fresh.** Run `ids` (with `--copy` first), then `rows`.
+3. **Take the user's rows.** The worklist holds the open rows owned by the user's code, plus unowned rows that fit the user's layer as the config describes it. List the other owners' open rows apart as a suggestion, and put a row with halves in two layers in both lists.
+4. **Order by priority.** Take every row at the top priority, then the next, then the next. Within a priority the order is yours to propose. Raise any row whose priority looks too low and say why: the user decides, and the column stays as the client set it.
+5. **Group for investigation.** Group rows that look like one cause: one issue may cover rows 1, 8 and 22. This is a starting point for investigation, not a build plan. Read the code a row points at, and use at most a couple of subagents.
+6. **Grill.** Call the Skill tool with "grilling" and ask as much as the worklist needs, front-loaded: which rows are in, the groups, the order, what waits. Ask in rounds where an answer opens new questions.
+7. **Fix the worklist.** Write it in chat as a table: group, row IDs, each row in plain words, priority, any existing issue, and why the rows are grouped. Record it in the `rewind-durable` file. End the message with a line of its own opening `**Rewind point.**`, saying the worklist above holds for the series.
+
+Done when the user has agreed the worklist and the rewind point line is written.
+
+## Issues
+
+The first session after the rewind point. Read [ISSUES.md](ISSUES.md) and follow it.
+
+Done when every group has an issue and `rows` shows each of the group's rows linking it. Then call the Skill tool with "prepare-rewind".
+
+## Work a group
+
+Each later session takes the next group from the worklist in the `rewind-durable` file. Once few rows remain or their causes are plain, offer to take several groups in one session.
+
+1. **Flip.** Set the group's rows to the in-progress status.
+2. **Say the problem.** In plain words, what each row reports, before any evidence.
+3. **Investigate.** Read the code, the saved data and how the old system behaved. Measure a subagent's inference before recommending on it.
+4. **Say the cause.** Explain what happened and why, in depth and in plain words. Before answering a row as cannot-reproduce, check it against the old behaviour yourself. A data problem goes back to the client through the row's response, with no code.
+5. **Grill.** Call the Skill tool with "grilling" on whatever is still open, and record each decision the way the project records them.
+6. **Build and ship** as the project's `CLAUDE.md` says: tests, review, merge, deploy. Report every test failure found, whoever caused it.
+7. **Hand over the other halves.** For each part another owner builds, raise a tracker issue or comment on the group's issue, saying what changed and what they need to do, and draft a message for the user to send them.
+8. **Answer the rows.** Write each row's response and status. A row closes only when every owner's half is live where the testers test; until then it stays in progress with its response.
+9. **Close the issue.** When every row in the group is closed, post a short Done / Needed comment on the group's issue and move it to done.
+10. **Hand over.** Record in the `rewind-durable` file what the group produced (commits, issues, each row's status), then call the Skill tool with "prepare-rewind".
+
+Done when `rows` reads back each row's status and response as written and the handover is written.

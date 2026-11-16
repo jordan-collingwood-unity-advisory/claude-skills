@@ -1,0 +1,40 @@
+# docs/agents/uat-tracker.json
+
+The project's description of its UAT feedback sheet. It is committed and shared with the team, so it names every owner and never says which one the current user is: the plan session asks, and the stream's `rewind-durable` file records the answer.
+
+```json
+{
+  "workbook": "Shared drive: UAT/Feedback.xlsx",
+  "output_dir": ".uat-tracker",
+  "sheet": {
+    "tab": "Feedback Log",
+    "columns": {
+      "id": "ID",
+      "feedback": "Feedback",
+      "status": "Status",
+      "response": "Response",
+      "priority": "Priority",
+      "owner": "Assigned to",
+      "issue": "Tracker issue"
+    }
+  },
+  "statuses": { "open": "Open", "in_progress": "In progress", "closed": "Closed" },
+  "priorities": ["1", "2", "3"],
+  "owners": {
+    "A": { "name": "Alex Example", "initials": "AE", "layer": "front end: pages, layout, styling" },
+    "B": { "name": "Sam Example", "initials": "SE", "layer": "back end: data, rules, everything not front end" }
+  },
+  "tracker": { "project": "Checkout rebuild", "queue_label": "uat-queue" }
+}
+```
+
+| Key | Meaning |
+| --- | --- |
+| `workbook` | Where the team keeps the sheet, as people would find it. Each user's absolute path differs, so the plan session asks for it and records it in the `rewind-durable` file. |
+| `output_dir` | A folder in the project for backups and copies. Add it to `.gitignore`: it holds copies of the client's sheet. |
+| `sheet.tab` | The worksheet holding the rows. |
+| `sheet.columns` | Each column's header text, exactly as the header row reads. The script finds the header row as the first row holding all of them, so columns may move. |
+| `statuses` | The words the sheet's Status column uses for open, in progress and closed. A blank status counts as open. |
+| `priorities` | The Priority column's values, most urgent first, as text. |
+| `owners` | Each owner code the sheet uses: a person's name, the initials that sign their responses, and their layer in words, which decides the unowned rows that fall to them. |
+| `tracker` | The project issues are raised in, and the label that marks them as queued work. |
