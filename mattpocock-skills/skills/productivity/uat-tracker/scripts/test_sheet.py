@@ -120,6 +120,18 @@ def main() -> None:
         # The layout survived every write
         sheet = openpyxl.load_workbook(workbook)["Feedback Log"]
         assert len(sheet.data_validations.dataValidation) == 1 and len(sheet.conditional_formatting) == 1
+
+        # new builds a sheet the other commands read, with the UID column locked, and never overwrites one
+        fresh = folder / "new.xlsx"
+        assert run(folder, "new", "config.json", "new.xlsx").returncode == 0
+        assert "already exists" in run(folder, "new", "config.json", "new.xlsx").stderr
+        book = openpyxl.load_workbook(fresh)
+        lock = next(rule for rule in book["Feedback Log"].data_validations.dataValidation if "A4" in rule.sqref)
+        assert (lock.type, lock.formula1) == ("custom", "FALSE")
+        book["Feedback Log"]["F4"] = "Total wrong"
+        book.save(fresh)
+        assert run(folder, "ids", "config.json", "new.xlsx").returncode == 0
+        assert cell(fresh, "A4") == "ID_1"
     print("sheet.py: all checks passed")
 
 

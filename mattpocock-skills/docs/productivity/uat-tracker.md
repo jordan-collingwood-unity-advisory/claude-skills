@@ -16,7 +16,7 @@ You invoke this by typing `/uat-tracker`, and the agent won't reach for it on it
 
 ## Prerequisites
 
-The project describes its sheet in `docs/agents/uat-tracker.json`: the tab, each column's header, the status words, the priority values, every owner's code, name, initials and layer, and the tracker project and queue label. When it is missing, the agent proposes one from the sheet's header row and writes it once you agree. The sheet needs an ID column, which you add by hand once; the script numbers new rows itself. The script needs Python with `openpyxl`, and its output folder, which holds backups of the sheet, must be ignored by git.
+The project describes its sheet in `docs/agents/uat-tracker.json`: the tab, each column's header, the status words, the priority values, every owner's code, name, initials and layer, and the tracker project and queue label. When it is missing, the agent proposes one, from the sheet's header row when the sheet exists, and writes it once you agree. A new project can start from the script's `new` command, which builds an empty sheet from that file with every column the script reads. The sheet needs an ID column first, frozen and locked against typing; `new` builds it that way, and an existing sheet gets it by hand once. The script numbers new rows itself. The script needs Python with `openpyxl`, and its output folder, which holds backups of the sheet, must be ignored by git.
 
 ## The worklist and the rewind point
 

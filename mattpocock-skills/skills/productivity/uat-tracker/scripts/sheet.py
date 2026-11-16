@@ -1,6 +1,7 @@
 """Read and write a UAT feedback sheet described by a project's uat-tracker.json.
 
 Run from the project root:
+  new   <config> <workbook>            build an empty feedback sheet from the config, refusing if the file exists
   rows  <config> <workbook> [--open]   print every row with feedback as one JSON line; --open leaves out closed rows
   ids   <config> <workbook> [--copy]   give each row with feedback and no UID the prefix and the next number
   write <config> <workbook> --id UID [--id UID ...] [--status S] [--response TEXT --by INITIALS] [--issue URL] [--copy]
@@ -14,7 +15,16 @@ from datetime import date, datetime
 from pathlib import Path
 
 import openpyxl
+from openpyxl.formatting.rule import CellIsRule
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
+from openpyxl.workbook.defined_name import DefinedName
+from openpyxl.worksheet.datavalidation import DataValidation
+from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.worksheet.worksheet import Worksheet
+
+# The new sheet's rows run from the header to here; Excel extends the table's dropdowns as rows are added
+LAST_ROW = 300
 
 
 def header(sheet: Worksheet, columns: dict[str, str]) -> tuple[int, dict[str, int]]:
@@ -154,14 +164,104 @@ def guarded_write(config: dict, workbook: Path, args: argparse.Namespace) -> Non
         raise SystemExit(f"Layout changed {before} -> {after}; restore {backup}.")
 
 
+def new_workbook(config: dict, path: Path) -> None:
+    """Build an empty feedback sheet from the config: UID first and locked, dropdowns from the config, a guide tab and a names tab."""
+    if path.exists():
+        raise SystemExit(f"{path} already exists. Nothing saved.")
+    columns = config["sheet"]["columns"]
+    statuses = config["statuses"]
+    headers = [
+        columns["id"], "Date", "Tester", "Type", "Reference", columns["feedback"], "Links",
+        columns["status"], columns["response"], columns["priority"], columns["owner"], columns["issue"],
+    ]
+    # Each header's column letter, such as {"Status": "H"}
+    letter = {text: get_column_letter(number) for number, text in enumerate(headers, start=1)}
+
+    book = openpyxl.Workbook()
+    sheet = book.active
+    sheet.title = config["sheet"]["tab"]
+    sheet["A1"] = f"{config['tracker']['project']} | UAT feedback"
+    sheet["A1"].font = Font(size=14, bold=True)
+    for number, text in enumerate(headers, start=1):
+        sheet.cell(3, number, text)
+        wide = text in (columns["feedback"], columns["response"])
+        sheet.column_dimensions[get_column_letter(number)].width = 60 if wide else 16
+    style = TableStyleInfo(name="TableStyleLight1", showRowStripes=True)
+    sheet.add_table(Table(displayName="FeedbackLog", ref=f"A3:{letter[headers[-1]]}{LAST_ROW}", tableStyleInfo=style))
+    sheet.freeze_panes = "B4"
+
+    # The UID column is grey so it reads as a label, and long text wraps
+    for number in range(4, LAST_ROW + 1):
+        sheet[f"{letter[columns['id']]}{number}"].fill = PatternFill("solid", fgColor="E7E6E6")
+        for text in (columns["feedback"], columns["response"]):
+            sheet[f"{letter[text]}{number}"].alignment = Alignment(wrap_text=True, vertical="top")
+
+    # A custom rule of FALSE makes Excel refuse anything typed; the script writes the file directly and is unaffected
+    lock = DataValidation(
+        type="custom", formula1="FALSE", showInputMessage=True, promptTitle=columns["id"],
+        prompt="Filled in automatically. Quote it when you refer to a row.",
+        errorStyle="stop", errorTitle=columns["id"], error="This is filled in automatically. Leave it blank.",
+    )
+    rules = {
+        columns["id"]: lock,
+        "Tester": DataValidation(type="list", formula1="Testers"),
+        "Type": DataValidation(type="list", formula1='"Bug,Feature request,Question"'),
+        columns["status"]: DataValidation(type="list", formula1=f'"{",".join(statuses.values())}"'),
+        columns["priority"]: DataValidation(type="list", formula1=f'"{",".join(config["priorities"])}"'),
+        columns["owner"]: DataValidation(type="list", formula1=f'"{",".join(config["owners"])}"'),
+    }
+    for text, rule in rules.items():
+        rule.showErrorMessage = True
+        sheet.add_data_validation(rule)
+        rule.add(f"{letter[text]}4:{letter[text]}{LAST_ROW}")
+    status_range = f"{letter[columns['status']]}4:{letter[columns['status']]}{LAST_ROW}"
+    for key, colour in (("open", "FFC7CE"), ("in_progress", "FFEB9C"), ("closed", "C6EFCE")):
+        rule = CellIsRule(operator="equal", formula=[f'"{statuses[key]}"'], fill=PatternFill(bgColor=colour))
+        sheet.conditional_formatting.add(status_range, rule)
+
+    guide = book.create_sheet("How to use")
+    guide["A1"] = "How to use"
+    guide["A1"].font = Font(size=14, bold=True)
+    lines = [
+        ("Where to write", f"Use the next empty row in {sheet.title}. Add one bug, request or question per row."),
+        (columns["id"], "Filled in automatically. Quote it when you refer to a row; Excel refuses anything typed there."),
+        ("Date, Tester, Type", "Enter the date and choose your name and the type from the dropdowns."),
+        ("Reference", "The record the feedback is about, such as an order or booking number, when there is one."),
+        (columns["feedback"], "For a bug, say what you did, what happened and what you expected. For a request, say what you would change."),
+        ("Links", "A sharing link to screenshots or further information. Make sure the reviewing team can open it."),
+        (columns["status"], f"{statuses['open']} (red): not yet being worked on. {statuses['in_progress']} (amber): work is under way. {statuses['closed']} (green): done or no further action, and the response says why."),
+        ("Reviewing team", f"{columns['status']}, {columns['response']}, {columns['priority']}, {columns['owner']} and {columns['issue']} are filled in by the reviewing team. Testers can leave them blank."),
+        ("Names", "Add testers on the Names tab, directly below the list without gaps."),
+    ]
+    for number, (label, text) in enumerate(lines, start=3):
+        guide.cell(number, 1, label).font = Font(bold=True)
+        guide.cell(number, 2, text).alignment = Alignment(wrap_text=True, vertical="top")
+    guide.column_dimensions["A"].width = 22
+    guide.column_dimensions["B"].width = 100
+
+    names = book.create_sheet("Names")
+    names["A1"] = "Tester names"
+    names["A2"] = "Add each tester below, without blank rows; the Tester dropdown reads this list."
+    names["A3"], names["C3"], names["D3"] = "Tester", "Owner code", "Owner"
+    for number, (code, owner) in enumerate(config["owners"].items(), start=4):
+        names.cell(number, 3, code)
+        names.cell(number, 4, owner["name"])
+    # The dropdown grows with the list: from A4 down as many cells as hold a name, never fewer than one
+    book.defined_names["Testers"] = DefinedName("Testers", attr_text="OFFSET(Names!$A$4,0,0,MAX(1,COUNTA(Names!$A$4:$A$1000)),1)")
+    book.save(path)
+    print(f"workbook: {path}")
+
+
 def main() -> None:
     """Parse the command line and run one command."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest="command", required=True)
-    for name in ("rows", "ids", "write"):
+    for name in ("new", "rows", "ids", "write"):
         command = commands.add_parser(name)
         command.add_argument("config", type=Path)
         command.add_argument("workbook", type=Path)
+        if name == "new":
+            continue
         if name == "rows":
             command.add_argument("--open", action="store_true", help="leave out rows whose status is the closed word")
         else:
@@ -175,6 +275,9 @@ def main() -> None:
     args = parser.parse_args()
 
     config = json.loads(args.config.read_text(encoding="utf-8"))
+    if args.command == "new":
+        new_workbook(config, args.workbook)
+        return
     if args.command == "rows":
         sheet = openpyxl.load_workbook(args.workbook, data_only=True)[config["sheet"]["tab"]]
         _columns, rows = read_rows(sheet, config)

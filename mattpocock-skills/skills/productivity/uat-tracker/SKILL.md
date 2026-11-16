@@ -26,21 +26,31 @@ Everything read before the rewind point stays in context for every later session
 
 | Command | What it does |
 | --- | --- |
+| `new <config> <workbook>` | Builds an empty sheet from the config: UID in column A, frozen, grey and locked, the config's columns plus Date, Tester, Type, Reference and Links, dropdowns from its statuses, priorities and owners, a How to use tab and a Names tab. Refuses if the file exists |
 | `rows <config> <workbook> [--open]` | Prints every row as one JSON line: its sheet `row`, UID (`id`), feedback, status, response, priority, owner and issue. `--open` leaves out closed rows |
 | `ids <config> <workbook> [--copy]` | Gives each row that has feedback and no UID the next one: the config's prefix and one more than the largest number in the column, such as `ID_148`, never reused |
 | `write <config> <workbook> --id UID [--id UID] [--status S] [--response TEXT --by INITIALS] [--issue URL] [--copy]` | Sets status, adds a response line, links an issue, on each row named by its UID |
 
 Name rows by UID everywhere: the `row` number moves whenever someone sorts the sheet, and the UID never does.
 
-Every write refuses while the file is open in Excel, backs the workbook up to the config's `output_dir`, reads each cell at the moment it writes it, and checks that the sheet's dropdowns, conditional formats and tabs survive. A response goes on top of the cell as `- 16 Nov, BS - <text>`, newest first, with earlier entries kept below; the script adds the date and initials. Run each write with `--copy` first: it writes to a copy and prints every cell that changed. Check that list, then run the same command on the sheet.
+Every write refuses while the file is open in Excel, backs the workbook up to the config's `output_dir`, reads each cell at the moment it writes it, and checks that the sheet's dropdowns, conditional formats and tabs survive. A response goes on top of the cell as `- 16 Nov, AB - <text>`, newest first, with earlier entries kept below; the script adds the date and initials. Run each write with `--copy` first: it writes to a copy and prints every cell that changed. Check that list, then run the same command on the sheet.
 
 A response is one line: what was found and the next step. Anything longer goes in the issue, or in a message drafted for the user to send.
 
 ## Set up
 
-When the project has no `docs/agents/uat-tracker.json`, read [CONFIG-FORMAT.md](CONFIG-FORMAT.md), read the sheet's header row and its owner and priority values, propose the file, and write it on the user's yes.
+When the project has no `docs/agents/uat-tracker.json`, read [CONFIG-FORMAT.md](CONFIG-FORMAT.md), propose the file, and write it on the user's yes.
 
-The sheet needs a UID column. When it has none, ask the user to add one by hand: a person changes the layout of a client's sheet, and the script only fills cells. To stop people typing over UIDs, the user can give the column a Custom data validation with the formula `=FALSE`: Excel then refuses typed entries, while the script, which writes the file directly, and sorting and filtering are unaffected. Sheet protection is the wrong tool here, because Excel will not sort a protected range that holds locked cells.
+- **A new sheet.** Agree the owners, priorities and status words with the user, write the config, then run `new` to build the sheet from it. The user puts it where the testers can reach it and adds the testers on its Names tab. Starting from `new` means the sheet always has every column the script reads.
+- **An existing sheet.** Take the config from its header row and its owner and priority values.
+
+The UID column sits first, frozen, so testers can quote a row's UID, and locked, so they cannot type one. `new` builds it that way. An existing sheet without one gets it by hand, because a person changes the layout of a client's sheet and the script only fills cells. Tell the user to:
+
+1. Cut the UID column, or insert a new one headed as the config names it, and insert it at column A with Excel's Insert Cut Cells, which carries the sheet's dropdowns, formats and table with it. A script moving the column would not.
+2. Fill the UID cells grey and freeze column A.
+3. Give the UID cells a Custom data validation with the formula `=FALSE` and an input message saying it is filled in automatically. Excel then refuses typed entries, while the script, which writes the file directly, and sorting and filtering are unaffected. A paste still gets through; `ids` stops on the duplicate or prefix-less UID that usually leaves.
+
+Sheet protection is the wrong tool here, because Excel will not sort a protected range that holds locked cells.
 
 ## Plan
 
