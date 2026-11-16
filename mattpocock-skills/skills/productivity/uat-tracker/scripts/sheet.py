@@ -4,6 +4,7 @@ Run from the project root:
   new   <config> <workbook> [--legacy] build an empty feedback sheet from the config, refusing if the file exists
   rows  <config> <workbook> [--open]   print every row with feedback as one JSON line; --open leaves out closed rows
   ids   <config> <workbook> [--copy]   give each row with feedback and no UID the prefix and the next number
+  add   <config> <workbook> --type TYPE --feedback TEXT [--feedback TEXT ...] [--copy]   add rows after the last one, dated today, and give them UIDs
   write <config> <workbook> --id UID [--id UID ...] [--status S] [--priority P] [--owner CODE] [--response TEXT --by INITIALS] [--issue URL] [--copy]
 A write backs the workbook up first and prints every cell it changed; --copy writes to a copy instead.
 """
@@ -124,6 +125,20 @@ def write_rows(sheet: Worksheet, config: dict, args: argparse.Namespace) -> list
     return messages
 
 
+def add_rows(sheet: Worksheet, config: dict, args: argparse.Namespace) -> list[str]:
+    """Write each feedback text with today's date and the type into the rows after the last row with feedback, then give them UIDs."""
+    # Date and Type are found by the headers new gives them, so a sheet without them stops here
+    header_row, columns = header(sheet, {**config["sheet"]["columns"], "date": "Date", "type": "Type"})
+    _columns, rows = read_rows(sheet, config)
+    number = max((row["row"] for row in rows), default=header_row) + 1
+    for text in args.feedback:
+        sheet.cell(number, columns["feedback"]).value = text
+        sheet.cell(number, columns["date"]).value = date.today()
+        sheet.cell(number, columns["type"]).value = args.type
+        number += 1
+    return assign_ids(sheet, config)
+
+
 def layout(path: Path, tab: str) -> tuple[int, int, list[str]]:
     """Count the tab's dropdowns and conditional formats, and list the workbook's tabs."""
     book = openpyxl.load_workbook(path)
@@ -162,7 +177,12 @@ def guarded_write(config: dict, workbook: Path, args: argparse.Namespace) -> Non
     before = layout(target, tab)
     book = openpyxl.load_workbook(target)
     sheet = book[tab]
-    messages = assign_ids(sheet, config) if args.command == "ids" else write_rows(sheet, config, args)
+    if args.command == "ids":
+        messages = assign_ids(sheet, config)
+    elif args.command == "add":
+        messages = add_rows(sheet, config, args)
+    else:
+        messages = write_rows(sheet, config, args)
     book.save(target)
 
     print(f"{'copy' if args.copy else 'workbook'}: {target}\nbackup: {backup}")
@@ -271,7 +291,7 @@ def main() -> None:
     """Parse the command line and run one command."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest="command", required=True)
-    for name in ("new", "rows", "ids", "write"):
+    for name in ("new", "rows", "ids", "add", "write"):
         command = commands.add_parser(name)
         command.add_argument("config", type=Path)
         command.add_argument("workbook", type=Path)
@@ -282,6 +302,9 @@ def main() -> None:
             command.add_argument("--open", action="store_true", help="leave out rows whose status is the closed word")
         else:
             command.add_argument("--copy", action="store_true", help="write to a copy in output_dir")
+    add = commands.choices["add"]
+    add.add_argument("--type", required=True, choices=["Bug", "Feature request", "Question"], help="the Type column's value for every row added")
+    add.add_argument("--feedback", action="append", required=True, help="one row's feedback; repeat for several rows")
     write = commands.choices["write"]
     write.add_argument("--id", action="append", required=True, help="a row's UID as the sheet shows it; repeat for several rows")
     write.add_argument("--status")
