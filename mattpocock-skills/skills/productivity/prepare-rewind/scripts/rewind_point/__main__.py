@@ -15,6 +15,8 @@ def squash(text: str) -> str:
 
 
 def main() -> None:
+    # A Windows console defaults to a legacy code page that cannot print every character a message holds
+    sys.stdout.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description="List the user's messages with the context before each.")
     parser.add_argument("--agent", required=True, choices=READERS)
     parser.add_argument("--repo", required=True, type=Path)
