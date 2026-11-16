@@ -91,6 +91,11 @@ def main() -> None:
         result = run(folder, "write", *base, "--id", "ID_4", "--status", "Done")
         assert result.returncode != 0 and cell(workbook, "C3") == "In progress"
 
+        # Priority is written as a number and owner as its code; an unknown priority is refused and nothing is saved
+        assert run(folder, "write", *base, "--id", "ID_6", "--priority", "1", "--owner", "B").returncode == 0
+        assert (cell(workbook, "E6"), cell(workbook, "F6")) == (1, "B")
+        assert run(folder, "write", *base, "--id", "ID_6", "--priority", "4").returncode != 0 and cell(workbook, "E6") == 1
+
         # A different issue link is refused; the same one is accepted
         assert run(folder, "write", *base, "--id", "ID_5", "--issue", "https://tracker/ENG-2").returncode != 0
         assert run(folder, "write", *base, "--id", "ID_5", "--issue", "https://tracker/ENG-1").returncode == 0

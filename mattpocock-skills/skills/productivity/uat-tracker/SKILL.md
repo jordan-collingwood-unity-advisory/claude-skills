@@ -29,7 +29,7 @@ Everything read before the rewind point stays in context for every later session
 | `new <config> <workbook> [--legacy]` | Builds an empty sheet from the config: UID in column A, frozen, grey and locked, the config's columns plus Date, Tester, Type, Reference and Links, dropdowns from its statuses, priorities and owners, a How to use tab and a Names tab. `--legacy` adds "Same issue in legacy?" for a project replacing an old system; ask the user which applies. Refuses if the file exists |
 | `rows <config> <workbook> [--open]` | Prints every row as one JSON line: its sheet `row`, UID (`id`), feedback, status, response, priority, owner and issue. `--open` leaves out closed rows |
 | `ids <config> <workbook> [--copy]` | Gives each row that has feedback and no UID the next one: the config's prefix and one more than the largest number in the column, such as `ID_148`, never reused |
-| `write <config> <workbook> --id UID [--id UID] [--status S] [--response TEXT --by INITIALS] [--issue URL] [--copy]` | Sets status, adds a response line, links an issue, on each row named by its UID |
+| `write <config> <workbook> --id UID [--id UID] [--status S] [--priority P] [--owner CODE] [--response TEXT --by INITIALS] [--issue URL] [--copy]` | Sets status, priority and owner, adds a response line, links an issue, on each row named by its UID. Priority and owner must be values the config lists |
 
 Name rows by UID everywhere: the `row` number moves whenever someone sorts the sheet, and the UID never does.
 
@@ -70,7 +70,7 @@ Sheet protection is the wrong tool here, because Excel will not sort a protected
    - **Confirm**: unowned rows whose layer is unclear, to settle in the grilling.
    - **Waiting**: the user's rows whose own part is done and which wait only on another owner's part, to close once it is live.
    - **Others**: each other owner's open row count and their top-priority rows, as a suggestion. A row with halves in two layers sits in the worklist and in its other owner's list.
-4. **Order by priority.** Take every row at the top priority, then the next, then the next. Within a priority the order is yours to propose. Raise any row whose priority looks too low against the config's meanings and say why: the user decides, and the column stays as the client set it.
+4. **Order by priority.** Take every row at the top priority, then the next, then the next. Within a priority the order is yours to propose. Raise any row whose priority looks wrong against the config's meanings and say why: the user decides, and only a priority they agree is written, with `write --priority`.
 5. **Group for investigation.** Group rows that look like one cause: one issue may cover rows 1, 8 and 22. This is a starting point for investigation, not a build plan. Read the code a row points at, and use at most a couple of subagents.
 6. **Grill.** Call the Skill tool with "grilling" and ask as much as the worklist needs, front-loaded: which rows are in, the groups, the order, what waits. Ask in rounds where an answer opens new questions.
 7. **Fix the worklist.** Write it in chat as a table: group, row IDs, each row in plain words, priority, any existing issue, and why the rows are grouped. Record it in the `rewind-durable` file. End the message with a line of its own opening `**Rewind point.**`, saying the worklist above holds for the series.

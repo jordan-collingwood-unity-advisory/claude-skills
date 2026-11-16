@@ -20,7 +20,7 @@ The project describes its sheet in `docs/agents/uat-tracker.json`: the tab, each
 
 ## The worklist and the rewind point
 
-The series runs around one rewind point. The plan session reads the sheet, takes your open rows (yours by owner code, plus unowned rows that fit your layer), orders them by the sheet's priority column, groups the ones that look like one cause for investigation, and grills you on the lot. It ends by writing the worklist in chat and setting the rewind point. The next session raises the issues; each one after works one group, or several once few remain, and ends in a commit and a rewind back to that same point. The groups are a starting point for investigation rather than a build plan: deep research happens inside each group's session, where it is discarded by the next rewind, not before the point, where it would be carried forever.
+The series runs around one rewind point. The plan session reads the sheet, takes your open rows (yours by owner code, plus unowned rows that fit your layer), orders them by the sheet's priority column, proposes a new priority for any row that looks wrong against the agreed meanings and writes the ones you accept, groups the ones that look like one cause for investigation, and grills you on the lot. It ends by writing the worklist in chat and setting the rewind point. The next session raises the issues; each one after works one group, or several once few remain, and ends in a commit and a rewind back to that same point. The groups are a starting point for investigation rather than a build plan: deep research happens inside each group's session, where it is discarded by the next rewind, not before the point, where it would be carried forever.
 
 ## Common questions
 

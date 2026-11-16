@@ -4,7 +4,7 @@ Run from the project root:
   new   <config> <workbook> [--legacy] build an empty feedback sheet from the config, refusing if the file exists
   rows  <config> <workbook> [--open]   print every row with feedback as one JSON line; --open leaves out closed rows
   ids   <config> <workbook> [--copy]   give each row with feedback and no UID the prefix and the next number
-  write <config> <workbook> --id UID [--id UID ...] [--status S] [--response TEXT --by INITIALS] [--issue URL] [--copy]
+  write <config> <workbook> --id UID [--id UID ...] [--status S] [--priority P] [--owner CODE] [--response TEXT --by INITIALS] [--issue URL] [--copy]
 A write backs the workbook up first and prints every cell it changed; --copy writes to a copy instead.
 """
 
@@ -86,11 +86,15 @@ def find_row(rows: list[dict], uid: str) -> dict:
 
 
 def write_rows(sheet: Worksheet, config: dict, args: argparse.Namespace) -> list[str]:
-    """Set status, add a dated response line on top, and link an issue, on each row named by ID."""
-    if not (args.status or args.response or args.issue):
-        raise SystemExit("Give --status, --response or --issue.")
+    """Set status, priority and owner, add a dated response line on top, and link an issue, on each row named by ID."""
+    if not (args.status or args.priority or args.owner or args.response or args.issue):
+        raise SystemExit("Give --status, --priority, --owner, --response or --issue.")
     if args.status and args.status not in config["statuses"].values():
         raise SystemExit(f"Status {args.status!r} is not one of {list(config['statuses'].values())}.")
+    if args.priority and args.priority not in config["priorities"]:
+        raise SystemExit(f"Priority {args.priority!r} is not one of {list(config['priorities'])}.")
+    if args.owner and args.owner not in config["owners"]:
+        raise SystemExit(f"Owner {args.owner!r} is not one of {list(config['owners'])}.")
     if args.response and not args.by:
         raise SystemExit("A response needs --by with the writer's initials.")
     columns, rows = read_rows(sheet, config)
@@ -100,6 +104,11 @@ def write_rows(sheet: Worksheet, config: dict, args: argparse.Namespace) -> list
         number = find_row(rows, uid)["row"]
         if args.status:
             sheet.cell(number, columns["status"]).value = args.status
+        if args.priority:
+            # A priority column usually takes whole numbers, so a digits-only level is written as a number
+            sheet.cell(number, columns["priority"]).value = int(args.priority) if args.priority.isdigit() else args.priority
+        if args.owner:
+            sheet.cell(number, columns["owner"]).value = args.owner
         if args.response:
             cell = sheet.cell(number, columns["response"])
             line = f"- {today.day} {today:%b}, {args.by} - {args.response}"
@@ -276,6 +285,8 @@ def main() -> None:
     write = commands.choices["write"]
     write.add_argument("--id", action="append", required=True, help="a row's UID as the sheet shows it; repeat for several rows")
     write.add_argument("--status")
+    write.add_argument("--priority", help="one of the config's priorities")
+    write.add_argument("--owner", help="one of the config's owner codes")
     write.add_argument("--response")
     write.add_argument("--by", help="the writer's initials, signed on the response")
     write.add_argument("--issue", help="the tracker issue's address")
