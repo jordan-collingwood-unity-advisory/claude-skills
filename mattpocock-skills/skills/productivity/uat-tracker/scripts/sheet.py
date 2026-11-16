@@ -1,7 +1,7 @@
 """Read and write a UAT feedback sheet described by a project's uat-tracker.json.
 
 Run from the project root:
-  new   <config> <workbook>            build an empty feedback sheet from the config, refusing if the file exists
+  new   <config> <workbook> [--legacy] build an empty feedback sheet from the config, refusing if the file exists
   rows  <config> <workbook> [--open]   print every row with feedback as one JSON line; --open leaves out closed rows
   ids   <config> <workbook> [--copy]   give each row with feedback and no UID the prefix and the next number
   write <config> <workbook> --id UID [--id UID ...] [--status S] [--response TEXT --by INITIALS] [--issue URL] [--copy]
@@ -164,14 +164,15 @@ def guarded_write(config: dict, workbook: Path, args: argparse.Namespace) -> Non
         raise SystemExit(f"Layout changed {before} -> {after}; restore {backup}.")
 
 
-def new_workbook(config: dict, path: Path) -> None:
-    """Build an empty feedback sheet from the config: UID first and locked, dropdowns from the config, a guide tab and a names tab."""
+def new_workbook(config: dict, path: Path, legacy: bool) -> None:
+    """Build an empty feedback sheet from the config: UID first and locked, dropdowns from the config, a guide tab and a names tab; legacy adds a column comparing with the system being replaced."""
     if path.exists():
         raise SystemExit(f"{path} already exists. Nothing saved.")
     columns = config["sheet"]["columns"]
     statuses = config["statuses"]
+    legacy_header = "Same issue in legacy?"
     headers = [
-        columns["id"], "Date", "Tester", "Type", "Reference", columns["feedback"], "Links",
+        columns["id"], "Date", "Tester", "Type", "Reference", columns["feedback"], *([legacy_header] if legacy else []), "Links",
         columns["status"], columns["response"], columns["priority"], columns["owner"], columns["issue"],
     ]
     # Each header's column letter, such as {"Status": "H"}
@@ -210,6 +211,8 @@ def new_workbook(config: dict, path: Path) -> None:
         columns["priority"]: DataValidation(type="list", formula1=f'"{",".join(config["priorities"])}"'),
         columns["owner"]: DataValidation(type="list", formula1=f'"{",".join(config["owners"])}"'),
     }
+    if legacy:
+        rules[legacy_header] = DataValidation(type="list", formula1='"Yes,No,Not applicable"')
     for text, rule in rules.items():
         rule.showErrorMessage = True
         sheet.add_data_validation(rule)
@@ -233,6 +236,8 @@ def new_workbook(config: dict, path: Path) -> None:
         ("Reviewing team", f"{columns['status']}, {columns['response']}, {columns['priority']}, {columns['owner']} and {columns['issue']} are filled in by the reviewing team. Testers can leave them blank."),
         ("Names", "Add testers on the Names tab, directly below the list without gaps."),
     ]
+    if legacy:
+        lines.insert(5, (legacy_header, "For a bug, try the same thing in the old system and choose Yes or No. Choose Not applicable if it has no equivalent, or for a request or question."))
     for number, (label, text) in enumerate(lines, start=3):
         guide.cell(number, 1, label).font = Font(bold=True)
         guide.cell(number, 2, text).alignment = Alignment(wrap_text=True, vertical="top")
@@ -261,6 +266,7 @@ def main() -> None:
         command.add_argument("config", type=Path)
         command.add_argument("workbook", type=Path)
         if name == "new":
+            command.add_argument("--legacy", action="store_true", help="add a column comparing each bug with the system being replaced")
             continue
         if name == "rows":
             command.add_argument("--open", action="store_true", help="leave out rows whose status is the closed word")
@@ -276,7 +282,7 @@ def main() -> None:
 
     config = json.loads(args.config.read_text(encoding="utf-8"))
     if args.command == "new":
-        new_workbook(config, args.workbook)
+        new_workbook(config, args.workbook, args.legacy)
         return
     if args.command == "rows":
         sheet = openpyxl.load_workbook(args.workbook, data_only=True)[config["sheet"]["tab"]]

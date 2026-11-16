@@ -26,7 +26,7 @@ Everything read before the rewind point stays in context for every later session
 
 | Command | What it does |
 | --- | --- |
-| `new <config> <workbook>` | Builds an empty sheet from the config: UID in column A, frozen, grey and locked, the config's columns plus Date, Tester, Type, Reference and Links, dropdowns from its statuses, priorities and owners, a How to use tab and a Names tab. Refuses if the file exists |
+| `new <config> <workbook> [--legacy]` | Builds an empty sheet from the config: UID in column A, frozen, grey and locked, the config's columns plus Date, Tester, Type, Reference and Links, dropdowns from its statuses, priorities and owners, a How to use tab and a Names tab. `--legacy` adds "Same issue in legacy?" for a project replacing an old system; ask the user which applies. Refuses if the file exists |
 | `rows <config> <workbook> [--open]` | Prints every row as one JSON line: its sheet `row`, UID (`id`), feedback, status, response, priority, owner and issue. `--open` leaves out closed rows |
 | `ids <config> <workbook> [--copy]` | Gives each row that has feedback and no UID the next one: the config's prefix and one more than the largest number in the column, such as `ID_148`, never reused |
 | `write <config> <workbook> --id UID [--id UID] [--status S] [--response TEXT --by INITIALS] [--issue URL] [--copy]` | Sets status, adds a response line, links an issue, on each row named by its UID |
