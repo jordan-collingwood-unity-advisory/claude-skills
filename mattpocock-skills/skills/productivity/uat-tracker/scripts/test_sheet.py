@@ -106,6 +106,11 @@ def main() -> None:
         book["Feedback Log"]["B6"] = "ID_6"
         book.save(workbook)
 
+        # rows --open leaves out the closed row and keeps the in-progress and open rows
+        assert run(folder, "write", *base, "--id", "ID_5", "--status", "Closed").returncode == 0
+        open_rows = [json.loads(line)["feedback"] for line in run(folder, "rows", *base, "--open").stdout.splitlines()]
+        assert open_rows == ["Price wrong", "Logo blurry"], open_rows
+
         # Excel's lock file stops a real write but not a copy run
         (folder / "~$feedback.xlsx").write_text("")
         assert "open in Excel" in run(folder, "write", *base, "--id", "ID_6", "--status", "Closed").stderr

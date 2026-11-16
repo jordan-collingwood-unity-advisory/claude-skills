@@ -26,9 +26,11 @@ Everything read before the rewind point stays in context for every later session
 
 | Command | What it does |
 | --- | --- |
-| `rows <config> <workbook>` | Prints every row as one JSON line: ID, feedback, status, response, priority, owner, issue |
-| `ids <config> <workbook>` | Gives each row that has feedback and no UID the next one: the config's prefix and one more than the largest number in the column, such as `ID_148`, never reused |
-| `write <config> <workbook> --id UID [--id UID] [--status S] [--response TEXT --by INITIALS] [--issue URL]` | Sets status, adds a response line, links an issue, on each row named by its UID |
+| `rows <config> <workbook> [--open]` | Prints every row as one JSON line: its sheet `row`, UID (`id`), feedback, status, response, priority, owner and issue. `--open` leaves out closed rows |
+| `ids <config> <workbook> [--copy]` | Gives each row that has feedback and no UID the next one: the config's prefix and one more than the largest number in the column, such as `ID_148`, never reused |
+| `write <config> <workbook> --id UID [--id UID] [--status S] [--response TEXT --by INITIALS] [--issue URL] [--copy]` | Sets status, adds a response line, links an issue, on each row named by its UID |
+
+Name rows by UID everywhere: the `row` number moves whenever someone sorts the sheet, and the UID never does.
 
 Every write refuses while the file is open in Excel, backs the workbook up to the config's `output_dir`, reads each cell at the moment it writes it, and checks that the sheet's dropdowns, conditional formats and tabs survive. A response goes on top of the cell as `- 16 Nov, BS - <text>`, newest first, with earlier entries kept below; the script adds the date and initials. Run each write with `--copy` first: it writes to a copy and prints every cell that changed. Check that list, then run the same command on the sheet.
 
@@ -42,9 +44,12 @@ The sheet needs a UID column. When it has none, ask the user to add one by hand:
 
 ## Plan
 
-1. **Who and where.** Ask which owner the user is and where the workbook sits on this machine, unless the stream's `rewind-durable` file already records both, and record the answers there.
-2. **Read fresh.** Run `ids` (with `--copy` first), then `rows`.
-3. **Take the user's rows.** The worklist holds the open rows owned by the user's code, plus unowned rows that fit the user's layer as the config describes it. List the other owners' open rows apart as a suggestion, and put a row with halves in two layers in both lists.
+1. **Who and where.** Ask which owner the user is and where the workbook sits on this machine, unless the stream's `rewind-durable` file already records both, and record the answers there. That file sits at the repository root, beside `rewind-status`, named for the stream as `prepare-rewind` describes; create it when it is missing.
+2. **Read fresh.** Run `ids` (with `--copy` first), then `rows --open`.
+3. **Take the user's rows.** A row is open unless its status is the config's closed word, so a blank status is open. The worklist holds the open rows owned by the user's code, plus unowned rows that fit the user's layer as the config describes it, and keeps three lists beside it:
+   - **Confirm**: unowned rows whose layer is unclear, to settle in the grilling.
+   - **Waiting**: the user's rows whose own part is done and which wait only on another owner's part, to close once it is live.
+   - **Others**: each other owner's open row count and their top-priority rows, as a suggestion. A row with halves in two layers sits in the worklist and in its other owner's list.
 4. **Order by priority.** Take every row at the top priority, then the next, then the next. Within a priority the order is yours to propose. Raise any row whose priority looks too low and say why: the user decides, and the column stays as the client set it.
 5. **Group for investigation.** Group rows that look like one cause: one issue may cover rows 1, 8 and 22. This is a starting point for investigation, not a build plan. Read the code a row points at, and use at most a couple of subagents.
 6. **Grill.** Call the Skill tool with "grilling" and ask as much as the worklist needs, front-loaded: which rows are in, the groups, the order, what waits. Ask in rounds where an answer opens new questions.

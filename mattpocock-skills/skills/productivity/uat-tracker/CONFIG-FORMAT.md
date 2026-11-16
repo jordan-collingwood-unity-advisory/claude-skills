@@ -35,8 +35,8 @@ The project's description of its UAT feedback sheet. It is committed and shared 
 | `output_dir` | A folder in the project for backups and copies. Add it to `.gitignore`: it holds copies of the client's sheet. |
 | `id_prefix` | The text before each row's number in its UID cell, so `"ID_"` gives `ID_1`, `ID_2`. An empty string gives bare numbers. A UID cell without it stops the script. |
 | `sheet.tab` | The worksheet holding the rows. |
-| `sheet.columns` | Each column's header text, exactly as the header row reads. The script finds the header row as the first row holding all of them, so columns may move. |
+| `sheet.columns` | Each column's header text, exactly as the header row reads, trailing spaces included. The script finds the header row as the first row holding all of them, so columns may move. |
 | `statuses` | The words the sheet's Status column uses for open, in progress and closed. A blank status counts as open. |
-| `priorities` | The Priority column's values, most urgent first, as text. |
+| `priorities` | The Priority column's values, most urgent first, as text. Compare a cell's value as text, since a typed 1 reads back as a number. |
 | `owners` | Each owner code the sheet uses: a person's name, the initials that sign their responses, and their layer in words, which decides the unowned rows that fall to them. |
 | `tracker` | The project issues are raised in, and the label that marks them as queued work. |

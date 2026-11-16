@@ -1,7 +1,7 @@
 """Read and write a UAT feedback sheet described by a project's uat-tracker.json.
 
 Run from the project root:
-  rows  <config> <workbook>            print every row with feedback as one JSON line
+  rows  <config> <workbook> [--open]   print every row with feedback as one JSON line; --open leaves out closed rows
   ids   <config> <workbook> [--copy]   give each row with feedback and no UID the prefix and the next number
   write <config> <workbook> --id UID [--id UID ...] [--status S] [--response TEXT --by INITIALS] [--issue URL] [--copy]
 A write backs the workbook up first and prints every cell it changed; --copy writes to a copy instead.
@@ -162,7 +162,9 @@ def main() -> None:
         command = commands.add_parser(name)
         command.add_argument("config", type=Path)
         command.add_argument("workbook", type=Path)
-        if name != "rows":
+        if name == "rows":
+            command.add_argument("--open", action="store_true", help="leave out rows whose status is the closed word")
+        else:
             command.add_argument("--copy", action="store_true", help="write to a copy in output_dir")
     write = commands.choices["write"]
     write.add_argument("--id", action="append", required=True, help="a row's UID as the sheet shows it; repeat for several rows")
@@ -177,6 +179,9 @@ def main() -> None:
         sheet = openpyxl.load_workbook(args.workbook, data_only=True)[config["sheet"]["tab"]]
         _columns, rows = read_rows(sheet, config)
         for row in rows:
+            # A blank status counts as open, so only the closed word is left out
+            if args.open and row["status"] == config["statuses"]["closed"]:
+                continue
             print(json.dumps(row, default=str, ensure_ascii=False))
         return
     guarded_write(config, args.workbook, args)
