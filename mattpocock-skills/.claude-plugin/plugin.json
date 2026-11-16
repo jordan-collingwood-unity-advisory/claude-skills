@@ -49,6 +49,7 @@
     "./skills/productivity/task-prioritisation",
     "./skills/productivity/teach",
     "./skills/productivity/to-questionnaire",
+    "./skills/productivity/uat-tracker",
     "./skills/productivity/wait-what",
     "./skills/productivity/writing-for-agents"
   ]

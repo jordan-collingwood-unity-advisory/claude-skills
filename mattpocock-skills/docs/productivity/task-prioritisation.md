@@ -4,7 +4,7 @@
 
 The table shows the tracker exactly as it is, and is only ever rebuilt from it. On the call you change priority, owner and the committed queue on the page and press Save changes, which downloads one changes file. When you say the review is done, the agent applies that file to the tracker and rebuilds the table, so the page never drifts from it.
 
-Before that review, you and your stakeholder walk their feedback sheet and give each row a decision, priority, owner and, where rows share a cause, a group name. Graduate turns every row marked for building into an issue, one per group, and writes each issue's link back into its rows; it shows you the plan first and creates nothing until you agree. The skill also checks that your project's `CLAUDE.md` tells every agent to build only queued issues, and proposes that section if it is missing.
+The skill also checks that your project's `CLAUDE.md` tells every agent to build only queued issues, and proposes that section if it is missing.
 
 ## When to reach for it
 
@@ -13,12 +13,13 @@ Type `/task-prioritisation`, or the agent reaches for it on its own when you ask
 | The situation | Reach for |
 | --- | --- |
 | The team walks through open and recently finished work to choose what comes next | `/task-prioritisation` |
+| A client's UAT feedback sheet needs its rows raised as issues and worked | [uat-tracker](https://aihero.dev/skills-uat-tracker) |
 | Raw issues need moving through triage roles one by one | [triage](https://aihero.dev/skills-triage) |
 | A decision needs one person's answer, asynchronously | [to-questionnaire](https://aihero.dev/skills-to-questionnaire) |
 
 ## Prerequisites
 
-The project declares its tracker in `docs/agents/task-prioritisation.json`: where the table is written, the tracker's link prefix, the label that marks committed work, and how the tracker's statuses and priorities map onto the table's three words each. When the file is missing, the agent proposes one from what your tracker holds and writes it once you agree. On Linear, the config also names the project and the project's `.env` holds a personal API key as `LINEAR_API_KEY`, so a script fetches every issue and no agent copies them. For graduate, the feedback sheet needs a decision column and a group column, which the config names along with the sheet's other columns. The scripts need Python with `python-dotenv`, and `openpyxl` for graduate, and the output folder must be ignored by git.
+The project declares its tracker in `docs/agents/task-prioritisation.json`: where the table is written, the tracker's link prefix, the label that marks committed work, and how the tracker's statuses and priorities map onto the table's three words each. When the file is missing, the agent proposes one from what your tracker holds and writes it once you agree. On Linear, the config also names the project and the project's `.env` holds a personal API key as `LINEAR_API_KEY`, so a script fetches every issue and no agent copies them. The scripts need Python with `python-dotenv`, and the output folder must be ignored by git.
 
 ## The walk-through
 
