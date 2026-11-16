@@ -44,6 +44,16 @@ When the project has no `docs/agents/uat-tracker.json`, read [CONFIG-FORMAT.md](
 - **A new sheet.** Agree the owners, priorities and status words with the user, write the config, then run `new` to build the sheet from it. The user puts it where the testers can reach it and adds the testers on its Names tab. Starting from `new` means the sheet always has every column the script reads.
 - **An existing sheet.** Take the config from its header row and its owner and priority values.
 
+Either way, ask the user what each priority means for this project and record it in the config. A level is set by how much a problem hurts what the product is for, not by its kind: a low-resolution image can be serious on a luxury brochure and minor on an internal tool. Offer these as a starting point:
+
+| Priority | Meaning | Such as |
+| --- | --- | --- |
+| 1 | Wrong or broken: information is incorrect, or something does not work | A wrong total, a failing button |
+| 2 | Seriously harms the experience the product exists to give | A blurred hero image on a sales page, a form that is hard to complete |
+| 3 | A minor imperfection | Alignment slightly off, a slow page load |
+
+A request or question takes the priority of the problem it solves.
+
 The UID column sits first, frozen, so testers can quote a row's UID, and locked, so they cannot type one. `new` builds it that way. An existing sheet without one gets it by hand, because a person changes the layout of a client's sheet and the script only fills cells. Tell the user to:
 
 1. Cut the UID column, or insert a new one headed as the config names it, and insert it at column A with Excel's Insert Cut Cells, which carries the sheet's dropdowns, formats and table with it. A script moving the column would not.
@@ -60,7 +70,7 @@ Sheet protection is the wrong tool here, because Excel will not sort a protected
    - **Confirm**: unowned rows whose layer is unclear, to settle in the grilling.
    - **Waiting**: the user's rows whose own part is done and which wait only on another owner's part, to close once it is live.
    - **Others**: each other owner's open row count and their top-priority rows, as a suggestion. A row with halves in two layers sits in the worklist and in its other owner's list.
-4. **Order by priority.** Take every row at the top priority, then the next, then the next. Within a priority the order is yours to propose. Raise any row whose priority looks too low and say why: the user decides, and the column stays as the client set it.
+4. **Order by priority.** Take every row at the top priority, then the next, then the next. Within a priority the order is yours to propose. Raise any row whose priority looks too low against the config's meanings and say why: the user decides, and the column stays as the client set it.
 5. **Group for investigation.** Group rows that look like one cause: one issue may cover rows 1, 8 and 22. This is a starting point for investigation, not a build plan. Read the code a row points at, and use at most a couple of subagents.
 6. **Grill.** Call the Skill tool with "grilling" and ask as much as the worklist needs, front-loaded: which rows are in, the groups, the order, what waits. Ask in rounds where an answer opens new questions.
 7. **Fix the worklist.** Write it in chat as a table: group, row IDs, each row in plain words, priority, any existing issue, and why the rows are grouped. Record it in the `rewind-durable` file. End the message with a line of its own opening `**Rewind point.**`, saying the worklist above holds for the series.

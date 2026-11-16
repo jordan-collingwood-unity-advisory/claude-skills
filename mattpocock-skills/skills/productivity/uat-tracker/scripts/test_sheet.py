@@ -25,7 +25,7 @@ CONFIG = {
         },
     },
     "statuses": {"open": "Open", "in_progress": "In progress", "closed": "Closed"},
-    "priorities": ["1", "2", "3"],
+    "priorities": {"1": "Wrong or broken", "2": "Seriously harms the experience", "3": "A minor imperfection"},
     "owners": {"B": {"name": "Sam Example", "initials": "SE", "layer": "back end"}},
     "tracker": {"project": "Example", "queue_label": "uat-queue"},
 }

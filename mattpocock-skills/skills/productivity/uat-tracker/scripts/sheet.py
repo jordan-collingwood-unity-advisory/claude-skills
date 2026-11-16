@@ -234,6 +234,7 @@ def new_workbook(config: dict, path: Path, legacy: bool) -> None:
         ("Links", "A sharing link to screenshots or further information. Make sure the reviewing team can open it."),
         (columns["status"], f"{statuses['open']} (red): not yet being worked on. {statuses['in_progress']} (amber): work is under way. {statuses['closed']} (green): done or no further action, and the response says why."),
         ("Reviewing team", f"{columns['status']}, {columns['response']}, {columns['priority']}, {columns['owner']} and {columns['issue']} are filled in by the reviewing team. Testers can leave them blank."),
+        (columns["priority"], " ".join(f"{level}: {meaning}." for level, meaning in config["priorities"].items()) + " A request or question takes the priority of the problem it solves."),
         ("Names", "Add testers on the Names tab, directly below the list without gaps."),
     ]
     if legacy:

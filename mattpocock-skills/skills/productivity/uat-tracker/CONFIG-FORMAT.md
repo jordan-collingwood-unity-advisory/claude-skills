@@ -20,7 +20,11 @@ The project's description of its UAT feedback sheet. It is committed and shared 
     }
   },
   "statuses": { "open": "Open", "in_progress": "In progress", "closed": "Closed" },
-  "priorities": ["1", "2", "3"],
+  "priorities": {
+    "1": "Wrong or broken: information is incorrect, or something does not work, such as a wrong total or a failing pay button",
+    "2": "Seriously harms the shopper's experience, such as a blurred product photo or a form that is hard to complete",
+    "3": "A minor imperfection, such as alignment slightly off or a slow page load"
+  },
   "owners": {
     "A": { "name": "Alex Example", "initials": "AE", "layer": "front end: pages, layout, styling" },
     "B": { "name": "Sam Example", "initials": "SE", "layer": "back end: data, rules, everything not front end" }
@@ -37,6 +41,6 @@ The project's description of its UAT feedback sheet. It is committed and shared 
 | `sheet.tab` | The worksheet holding the rows. |
 | `sheet.columns` | Each column's header text, exactly as the header row reads, trailing spaces included. The script finds the header row as the first row holding all of them, so columns may move. |
 | `statuses` | The words the sheet's Status column uses for open, in progress and closed. A blank status counts as open. |
-| `priorities` | The Priority column's values, most urgent first, as text. Compare a cell's value as text, since a typed 1 reads back as a number. |
+| `priorities` | Each value the Priority column uses, most urgent first, as text, with what it means for this project. A level is set by how much the problem hurts what the product is for, so the same kind of problem can sit at different levels in different projects; the user agrees the meanings at set up. Compare a cell's value as text, since a typed 1 reads back as a number. |
 | `owners` | Each owner code the sheet uses: a person's name, the initials that sign their responses, and their layer in words, which decides the unowned rows that fall to them. |
 | `tracker` | The project issues are raised in, and the label that marks them as queued work. |
