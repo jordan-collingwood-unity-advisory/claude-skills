@@ -6,7 +6,8 @@ The plugin's hooks/hooks.json runs these in every project:
 A project opts in with docs/agents/records.json on origin/main, naming its record paths, register and ADR folder; other folders are left alone.
 Records refresh at the start of each turn and push in one commit at its end. Only your own changes reach main: a new register row is
 appended, a changed row or file replaces main's only while main still holds the copy you started from, and nothing is ever deleted.
-Each reads the hook's JSON on stdin. A failure tells the agent what happened and where the recovery steps are.
+Each reads the hook's JSON on stdin. A failed refresh tells the agent and lets the prompt through. A failed push never stops the turn:
+it is shown to the user once, stays silent while the same failure repeats, and is passed to the agent once at the next prompt.
 """
 
 import csv
@@ -19,6 +20,8 @@ from pathlib import Path
 CONFIG = "docs/agents/records.json"
 HELP = Path(__file__).resolve().parents[1] / "SKILL.md"
 CHECK = Path(__file__).with_name("check_records.py")
+# The last failed push, kept beside the copies the hook gave this checkout, so a repeat is not reported again
+STOP_FAILURE = "stop-failure.json"
 
 
 class SyncError(Exception):
@@ -213,14 +216,38 @@ def push(root: Path, sync: Path, base: Path, config: dict) -> None:
     refresh(root, sync, base, config)
 
 
-def fail(event: str, error: Exception) -> None:
+def tell_agent_of_stop_failure(base: Path) -> None:
+    """Pass a failed push to the agent once, at the first prompt after it, as context that does not block the prompt."""
+    path = base / STOP_FAILURE
+    if not path.is_file():
+        return
+    stored = json.loads(path.read_text(encoding="utf-8"))
+    if stored["told_agent"]:
+        return
+    print(stored["message"] + "\nThe user has already seen this. If a record you wrote caused it, fix that record; otherwise leave it to the user.")
+    path.write_text(json.dumps({**stored, "told_agent": True}), encoding="utf-8")
+
+
+def fail(event: str, error: Exception, base: Path | None) -> None:
     message = f"Decision-record sync failed ({event}): {error}\nWhat to do: {HELP}, section \"Keep the records on main\"."
     if event == "prompt":
         # A prompt hook's stdout on exit 0 reaches the agent as context and lets the user's prompt through.
         print(message + "\nThe user's prompt was not blocked. Tell the user, investigate the cause, and edit no record until the sync works.")
         sys.exit(0)
-    print(message, file=sys.stderr)
-    sys.exit(2)
+    if event != "stop":
+        # An unknown event is a wiring mistake in hooks.json, so it stops loudly
+        print(message, file=sys.stderr)
+        sys.exit(2)
+    # A Stop hook exiting 2 makes the agent reply, and its reply ends the turn again, so a failure the agent cannot fix loops
+    if base is not None:
+        path = base / STOP_FAILURE
+        if path.is_file() and json.loads(path.read_text(encoding="utf-8"))["message"] == message:
+            sys.exit(0)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"message": message, "told_agent": False}), encoding="utf-8")
+    # A systemMessage on exit 0 is shown to the user and lets the turn end
+    print(json.dumps({"systemMessage": message}))
+    sys.exit(0)
 
 
 def main() -> None:
@@ -228,22 +255,26 @@ def main() -> None:
     call = json.load(sys.stdin)
     if not opted_in(Path(call["cwd"])):
         return
+    base = None
     try:
         root, sync, base = roots(Path(call["cwd"]))
         local_config = root / CONFIG
         if local_config.is_file() and json.loads(local_config.read_text(encoding="utf-8")).get("enabled", True) is False:
             return
         if event == "prompt":
+            tell_agent_of_stop_failure(base)
             git(root, "fetch", "origin", "main")
         config = load_config(root)
         if event == "prompt":
             pull(root, sync, base, config)
         elif event == "stop":
             push(root, sync, base, config)
+            # A push that works clears the last failure, so a later one is reported afresh
+            (base / STOP_FAILURE).unlink(missing_ok=True)
         else:
             raise SyncError(f"unknown hook event {event}: use prompt or stop.")
     except SyncError as error:
-        fail(event, error)
+        fail(event, error, base)
 
 
 if __name__ == "__main__":

@@ -35,8 +35,8 @@ def hook(event: str, cwd: Path, trace: Path | None = None) -> subprocess.Complet
 def edit(person: Path, rel: str, text: str) -> subprocess.CompletedProcess:
     """A turn with one edit: refresh on prompt submission, then push on Stop."""
     prompt = hook("prompt", person)
-    # A failed refresh exits 0 so the prompt goes through, and says so on stdout.
-    if prompt.returncode or prompt.stdout:
+    # A failed refresh exits 0 so the prompt goes through, and says so on stdout; a passed-on push failure is not one.
+    if prompt.returncode or "sync failed (prompt)" in prompt.stdout:
         return prompt
     (person / rel).parent.mkdir(parents=True, exist_ok=True)
     (person / rel).write_text(text)
@@ -96,16 +96,23 @@ def main() -> None:
     assert on_main(seed, "docs/adr/0001-x.md") == ADR
 
     result = edit(ben, reg, register("D1", "D2 ben", "D3 alex", "D4 BAD"))
-    assert result.returncode == 2 and "SKILL.md" in result.stderr and "check failed" in result.stderr, result.stderr
+    notice = json.loads(result.stdout)["systemMessage"]
+    assert result.returncode == 0 and "SKILL.md" in notice and "check failed" in notice, "a failed push is shown to the user and lets the turn end"
     assert "BAD" not in on_main(seed, reg)
+    repeat = hook("stop", ben)
+    assert repeat.returncode == 0 and not repeat.stdout and not repeat.stderr, "the same failure again is silent, so it cannot loop"
+    told = hook("prompt", ben)
+    assert told.returncode == 0 and "check failed" in told.stdout, "the next prompt passes the failure to the agent"
+    assert "check failed" not in hook("prompt", ben).stdout, "and only once"
     assert edit(ben, reg, register("D1", "D2 ben", "D3 alex", "D4 ben")).returncode == 0, "the fix goes through"
     assert on_main(seed, reg) == register("D1", "D2 ben", "D3 alex", "D4 ben")
+    assert not (ben / ".git/records-base/stop-failure.json").exists(), "a push that works clears the failure, so a later one is reported afresh"
 
     assert hook("prompt", alex).returncode == 0
     (alex / reg).write_text(register("D1", "D2 ben", "D3 alex", "D4 ben", "D5 alex"))
     assert edit(ben, reg, register("D1", "D2 ben", "D3 alex", "D4 ben", "D5 ben")).returncode == 0
     result = hook("stop", alex)
-    assert result.returncode == 2 and "D5" in result.stderr and "SKILL.md" in result.stderr, "a same-moment clash stops and names the id"
+    assert result.returncode == 0 and "D5" in json.loads(result.stdout)["systemMessage"], "a same-moment clash is shown and names the id"
     assert hook("prompt", alex).returncode == 0, "nothing is left half-done, so the next turn starts"
     assert (alex / reg).read_text() == register("D1", "D2 ben", "D3 alex", "D4 ben", "D5 alex"), "a clash leaves the working copy intact"
 
@@ -183,7 +190,7 @@ def main() -> None:
     assert edit(ben, reg, register(*latest, "D20 ben", "D21 late")).returncode == 0
     (old / reg).write_text(register(*latest, "D20 old again", "D21 late"))
     result = hook("stop", old)
-    assert result.returncode == 2 and "D20" in result.stderr, "a row main changed after you started stops the push and is named"
+    assert result.returncode == 0 and "D20" in json.loads(result.stdout)["systemMessage"], "a row main changed after you started stops the push and is named"
     assert on_main(seed, reg) == register(*latest, "D20 ben", "D21 late"), "main keeps the other person's change"
 
     run(ben, "git", "remote", "set-url", "origin", str(base / "missing.git"))
