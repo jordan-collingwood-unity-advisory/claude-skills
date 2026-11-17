@@ -19,7 +19,7 @@ The project's description of its UAT feedback sheet. It is committed and shared 
       "issue": "Tracker issue"
     }
   },
-  "statuses": { "open": "Open", "in_progress": "In progress", "closed": "Closed" },
+  "statuses": { "open": "Open", "in_progress": "In progress", "built": "Built", "closed": "Closed" },
   "priorities": {
     "1": "Wrong or broken: information is incorrect, or something does not work, such as a wrong total or a failing pay button",
     "2": "Seriously harms the shopper's experience, such as a blurred product photo or a form that is hard to complete",
@@ -40,7 +40,7 @@ The project's description of its UAT feedback sheet. It is committed and shared 
 | `id_prefix` | The text before each row's number in its UID cell, so `"ID_"` gives `ID_1`, `ID_2`. An empty string gives bare numbers. A UID cell without it stops the script. |
 | `sheet.tab` | The worksheet holding the rows. |
 | `sheet.columns` | Each column's header text, exactly as the header row reads, trailing spaces included. The script finds the header row as the first row holding all of them, so columns may move. |
-| `statuses` | The words the sheet's Status column uses for open, in progress and closed. A blank status counts as open. |
+| `statuses` | The words the sheet's Status column uses for open, in progress, built and closed. Built means the fix is merged but not yet live where the testers test; closed means live there, or no further action. A blank status counts as open. |
 | `priorities` | Each value the Priority column uses, most urgent first, as text, with what it means for this project. A level is set by how much the problem hurts what the product is for, so the same kind of problem can sit at different levels in different projects; the user agrees the meanings at set up. Compare a cell's value as text, since a typed 1 reads back as a number. |
 | `owners` | Each owner code the sheet uses: a person's name, the initials that sign their responses, and their layer in words, which decides the unowned rows that fall to them. |
 | `tracker` | The project issues are raised in, and the label that marks them as queued work. |

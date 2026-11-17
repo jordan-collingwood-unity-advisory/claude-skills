@@ -69,7 +69,7 @@ Sheet protection is the wrong tool here, because Excel will not sort a protected
 2. **Read fresh.** Run `ids` (with `--dry-run` first), then `rows --open`.
 3. **Take the user's rows.** A row is open unless its status is the config's closed word, so a blank status is open. The worklist holds the open rows owned by the user's code, plus unowned rows that fit the user's layer as the config describes it, and keeps three lists beside it:
    - **Confirm**: unowned rows whose layer is unclear, to settle in the grilling.
-   - **Waiting**: the user's rows whose own part is done and which wait only on another owner's part, to close once it is live.
+   - **Waiting**: the user's rows whose own part is done and which wait only on another owner's part, and rows at the built status, which wait only on a deploy; each closes once it is live where the testers test.
    - **Others**: each other owner's open row count and their top-priority rows, as a suggestion. A row with halves in two layers sits in the worklist and in its other owner's list.
 4. **Order by priority.** Take every row at the top priority, then the next, then the next. Within a priority the order is yours to propose. Raise any row whose priority looks wrong against the config's meanings and say why: the user decides, and only a priority they agree is written, with `write --priority`.
 5. **Group for investigation.** Group rows that look like one cause: one issue may cover rows 1, 8 and 22. This is a starting point for investigation, not a build plan. Read the code a row points at, and use at most a couple of subagents.
@@ -95,7 +95,7 @@ Each later session takes the next group from the worklist in the `rewind-durable
 5. **Build.** When the group needs code, call the Skill tool with "implement", handing it the group's issue and the cause from step 4. It explains the fix, grills whatever is still open, records each decision, builds test-first, reviews and commits. The worklist's rewind point stands for the series, so `implement` keeps it and builds the group in one part. A group whose rows are all data problems or answered questions has nothing to build and goes on to step 7.
 6. **Ship** as the project's `CLAUDE.md` says: merge, deploy. Report every test failure found, whoever caused it.
 7. **Hand over the other halves.** For each part another owner builds, raise a tracker issue or comment on the group's issue, saying what changed and what they need to do, and draft a message for the user to send them.
-8. **Answer the rows.** Write each row's response and status. A row closes only when every owner's half is live where the testers test; until then it stays in progress with its response.
+8. **Answer the rows.** Write each row's response and status. A row moves to the built status once every owner's half is merged, and closes only when every half is live where the testers test; until then it stays in progress with its response. A row answered with no code closes at once.
 9. **Close the issue.** When every row in the group is closed, post a short Done / Needed comment on the group's issue and move it to done.
 10. **Hand over.** Record in the `rewind-durable` file what the group produced (commits, issues, each row's status), then call the Skill tool with "prepare-rewind".
 

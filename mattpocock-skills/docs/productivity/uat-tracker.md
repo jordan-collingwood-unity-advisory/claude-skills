@@ -35,7 +35,7 @@ No. A mention notifies only when a signed-in person posts it as a comment in Exc
 - Testers read a short, dated answer on every row they raised, newest on top.
 - Each group has one issue, and every row in it links that issue.
 - Sessions after the first start from the worklist without re-reading the sheet's history or re-asking what was agreed.
-- A row closes only once every owner's part of it is live where the testers test.
+- A row moves to built once every owner's part of it is merged, and closes only once every part is live where the testers test.
 
 ## Where it fits
 

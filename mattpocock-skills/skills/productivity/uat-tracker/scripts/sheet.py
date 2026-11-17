@@ -250,7 +250,7 @@ def new_workbook(config: dict, path: Path, legacy: bool) -> None:
         sheet.add_data_validation(rule)
         rule.add(f"{letter[text]}4:{letter[text]}{LAST_ROW}")
     status_range = f"{letter[columns['status']]}4:{letter[columns['status']]}{LAST_ROW}"
-    for key, colour in (("open", "FFC7CE"), ("in_progress", "FFEB9C"), ("closed", "C6EFCE")):
+    for key, colour in (("open", "FFC7CE"), ("in_progress", "FFEB9C"), ("built", "BDD7EE"), ("closed", "C6EFCE")):
         rule = CellIsRule(operator="equal", formula=[f'"{statuses[key]}"'], fill=PatternFill(bgColor=colour))
         sheet.conditional_formatting.add(status_range, rule)
 
@@ -264,7 +264,7 @@ def new_workbook(config: dict, path: Path, legacy: bool) -> None:
         ("Reference", "The record the feedback is about, such as an order or booking number, when there is one."),
         (columns["feedback"], "For a bug, say what you did, what happened and what you expected. For a request, say what you would change."),
         ("Links", "A sharing link to screenshots or further information. Make sure the reviewing team can open it."),
-        (columns["status"], f"{statuses['open']} (red): not yet being worked on. {statuses['in_progress']} (amber): work is under way. {statuses['closed']} (green): done or no further action, and the response says why."),
+        (columns["status"], f"{statuses['open']} (red): not yet being worked on. {statuses['in_progress']} (amber): work is under way. {statuses['built']} (blue): the fix is built and waits to go live where you test. {statuses['closed']} (green): live where you test, or no further action, and the response says why."),
         ("Reviewing team", f"{columns['status']}, {columns['response']}, {columns['priority']}, {columns['owner']} and {columns['issue']} are filled in by the reviewing team. Testers can leave them blank."),
         (columns["priority"], " ".join(f"{level}: {meaning}." for level, meaning in config["priorities"].items()) + " A request or question takes the priority of the problem it solves."),
         ("Names", "Add testers on the Names tab, directly below the list without gaps."),
