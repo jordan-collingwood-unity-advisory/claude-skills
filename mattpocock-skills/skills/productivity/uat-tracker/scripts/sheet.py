@@ -1,51 +1,91 @@
-"""Read and write a UAT feedback sheet described by a project's uat-tracker.json.
+"""Read and write a UAT feedback sheet described by a project's uat-tracker.json, through the Excel running on this machine.
 
-Run from the project root:
+Run from the project root, on Windows with Excel desktop open:
   new   <config> <workbook> [--legacy] build an empty feedback sheet from the config, refusing if the file exists
   rows  <config> <workbook> [--open]   print every row with feedback as one JSON line; --open leaves out closed rows
-  ids   <config> <workbook> [--copy]   give each row with feedback and no UID the prefix and the next number
-  add   <config> <workbook> --type TYPE --feedback TEXT [--feedback TEXT ...] [--copy]   add rows after the last one, dated today, and give them UIDs
-  write <config> <workbook> --id UID [--id UID ...] [--status S] [--priority P] [--owner CODE] [--response TEXT --by INITIALS] [--issue URL] [--copy]
-A write backs the workbook up first and prints every cell it changed; --copy writes to a copy instead.
+  ids   <config> <workbook> [--dry-run]   give each row with feedback and no UID the prefix and the next number
+  add   <config> <workbook> --type TYPE --feedback TEXT [--feedback TEXT ...] [--dry-run]   add rows after the last one, dated today, and give them UIDs
+  write <config> <workbook> --id UID [--id UID ...] [--status S] [--priority P] [--owner CODE] [--response TEXT --by INITIALS] [--issue URL] [--dry-run]
+Every change goes cell by cell through Excel, so it merges with people editing the sheet at the same time.
+A change prints every cell it sets, backs the workbook up, saves, and reads each cell back; --dry-run only prints.
+new writes a file nobody has open yet, so it builds it directly with openpyxl.
 """
 
 import argparse
 import json
-import shutil
 from datetime import date, datetime
 from pathlib import Path
 
 import openpyxl
+import pywintypes
+import win32com.client
 from openpyxl.formatting.rule import CellIsRule
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.workbook.defined_name import DefinedName
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.table import Table, TableStyleInfo
-from openpyxl.worksheet.worksheet import Worksheet
+from win32com.client import CDispatch
 
 # The new sheet's rows run from the header to here; Excel extends the table's dropdowns as rows are added
 LAST_ROW = 300
 
+# One cell to set: sheet row number, column number, value
+Change = tuple[int, int, object]
 
-def header(sheet: Worksheet, columns: dict[str, str]) -> tuple[int, dict[str, int]]:
+
+def open_in_excel(path: Path) -> tuple[CDispatch, bool]:
+    """Return the workbook from the running Excel and whether this call opened it; refuse a different file of the same name."""
+    try:
+        excel = win32com.client.GetActiveObject("Excel.Application")
+    except pywintypes.com_error:
+        raise SystemExit("Excel is not running on this machine; open Excel first. Nothing read or saved.")
+    for book in excel.Workbooks:
+        if book.Name == path.name:
+            # A cloud workbook shows its web address; a local one must be this very file, not a downloaded copy
+            if not book.FullName.startswith("https://") and Path(book.FullName).resolve() != path.resolve():
+                raise SystemExit(f"A different {path.name} is open in Excel ({book.FullName}); close it first. Nothing read or saved.")
+            return book, False
+    return excel.Workbooks.Open(str(path.resolve())), True
+
+
+def plain(value: object) -> object:
+    """Return a cell value from Excel with whole numbers as int and dates without Excel's time zone."""
+    # Excel hands every number over as a float, so a priority of 1 arrives as 1.0
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, datetime):
+        return value.replace(tzinfo=None)
+    return value
+
+
+def read_table(sheet: CDispatch) -> dict[int, dict[int, object]]:
+    """Read the tab's used range in one call: each sheet row number maps each column number to its value."""
+    used = sheet.UsedRange
+    return {
+        number: {column: plain(value) for column, value in enumerate(values, start=used.Column)}
+        for number, values in enumerate(used.Value, start=used.Row)
+    }
+
+
+def header(table: dict[int, dict[int, object]], columns: dict[str, str]) -> tuple[int, dict[str, int]]:
     """Return the header row's number and each column key's column number; the header row is the first holding every configured header."""
     wanted = set(columns.values())
-    for row in sheet.iter_rows():
-        found = {cell.value: cell.column for cell in row if isinstance(cell.value, str) and cell.value in wanted}
+    for number, row in table.items():
+        found = {value: column for column, value in row.items() if isinstance(value, str) and value in wanted}
         if len(found) == len(wanted):
-            return row[0].row, {key: found[text] for key, text in columns.items()}
+            return number, {key: found[text] for key, text in columns.items()}
     raise SystemExit(f"No row holds every configured header: {sorted(wanted)}")
 
 
-def read_rows(sheet: Worksheet, config: dict) -> tuple[dict[str, int], list[dict]]:
+def read_rows(table: dict[int, dict[int, object]], config: dict) -> tuple[dict[str, int], list[dict]]:
     """Return the column map and every row below the header that has feedback, each with its sheet row number."""
-    header_row, columns = header(sheet, config["sheet"]["columns"])
+    header_row, columns = header(table, config["sheet"]["columns"])
     rows = []
-    for number in range(header_row + 1, sheet.max_row + 1):
-        values = {key: sheet.cell(number, column).value for key, column in columns.items()}
+    for number, row in table.items():
+        values = {key: row[column] for key, column in columns.items()}
         # A row without feedback is an empty or formatting-only row
-        if values["feedback"] in (None, ""):
+        if number <= header_row or values["feedback"] in (None, ""):
             continue
         rows.append({"row": number, **values})
     return columns, rows
@@ -59,23 +99,21 @@ def uid_number(uid: object, prefix: str) -> int:
     return int(text[len(prefix):])
 
 
-def assign_ids(sheet: Worksheet, config: dict) -> list[str]:
+def assign_ids(rows: list[dict], columns: dict[str, int], prefix: str) -> tuple[list[Change], list[str]]:
     """Give each row with no UID the prefix and the next number after the largest in the column; refuse duplicates."""
-    prefix = config["id_prefix"]
-    columns, rows = read_rows(sheet, config)
     existing = [uid_number(row["id"], prefix) for row in rows if row["id"] not in (None, "")]
     duplicates = sorted({f"{prefix}{number}" for number in existing if existing.count(number) > 1})
     if duplicates:
         raise SystemExit(f"Duplicate UIDs {duplicates}; fix them in the sheet first. Nothing saved.")
     next_number = max(existing, default=0) + 1
-    messages = []
+    changes, messages = [], []
     for row in rows:
         if row["id"] in (None, ""):
             uid = f"{prefix}{next_number}"
-            sheet.cell(row["row"], columns["id"]).value = uid
+            changes.append((row["row"], columns["id"], uid))
             messages.append(f"sheet row {row['row']}: {uid}")
             next_number += 1
-    return messages
+    return changes, messages
 
 
 def find_row(rows: list[dict], uid: str) -> dict:
@@ -86,7 +124,7 @@ def find_row(rows: list[dict], uid: str) -> dict:
     return matches[0]
 
 
-def write_rows(sheet: Worksheet, config: dict, args: argparse.Namespace) -> list[str]:
+def write_rows(table: dict[int, dict[int, object]], config: dict, args: argparse.Namespace) -> tuple[list[Change], list[str]]:
     """Set status, priority and owner, add a dated response line on top, and link an issue, on each row named by ID."""
     if not (args.status or args.priority or args.owner or args.response or args.issue):
         raise SystemExit("Give --status, --priority, --owner, --response or --issue.")
@@ -98,99 +136,64 @@ def write_rows(sheet: Worksheet, config: dict, args: argparse.Namespace) -> list
         raise SystemExit(f"Owner {args.owner!r} is not one of {list(config['owners'])}.")
     if args.response and not args.by:
         raise SystemExit("A response needs --by with the writer's initials.")
-    columns, rows = read_rows(sheet, config)
+    columns, rows = read_rows(table, config)
     today = date.today()
-    messages = []
+    changes, messages = [], []
     for uid in args.id:
-        number = find_row(rows, uid)["row"]
+        row = find_row(rows, uid)
+        number = row["row"]
         if args.status:
-            sheet.cell(number, columns["status"]).value = args.status
+            changes.append((number, columns["status"], args.status))
         if args.priority:
             # A priority column usually takes whole numbers, so a digits-only level is written as a number
-            sheet.cell(number, columns["priority"]).value = int(args.priority) if args.priority.isdigit() else args.priority
+            changes.append((number, columns["priority"], int(args.priority) if args.priority.isdigit() else args.priority))
         if args.owner:
-            sheet.cell(number, columns["owner"]).value = args.owner
+            changes.append((number, columns["owner"], args.owner))
         if args.response:
-            cell = sheet.cell(number, columns["response"])
             line = f"- {today.day} {today:%b}, {args.by} - {args.response}"
-            # Earlier entries stay below the new line, read from the cell as it is now
-            earlier = str(cell.value).strip() if cell.value is not None else ""
-            cell.value = f"{line}\n{earlier}" if earlier else line
+            # Earlier entries stay below the new line, read from the sheet as it is now
+            earlier = str(row["response"]).strip() if row["response"] is not None else ""
+            changes.append((number, columns["response"], f"{line}\n{earlier}" if earlier else line))
         if args.issue:
-            cell = sheet.cell(number, columns["issue"])
-            if cell.value not in (None, "", args.issue):
-                raise SystemExit(f"{uid} already links {cell.value!r}. Nothing saved.")
-            cell.value = args.issue
-        messages.append(f"{uid} (sheet row {number}) written")
-    return messages
+            if row["issue"] not in (None, "", args.issue):
+                raise SystemExit(f"{uid} already links {row['issue']!r}. Nothing saved.")
+            changes.append((number, columns["issue"], args.issue))
+        messages.append(f"{uid} (sheet row {number})")
+    return changes, messages
 
 
-def add_rows(sheet: Worksheet, config: dict, args: argparse.Namespace) -> list[str]:
+def add_rows(table: dict[int, dict[int, object]], config: dict, args: argparse.Namespace) -> tuple[list[Change], list[str]]:
     """Write each feedback text with today's date and the type into the rows after the last row with feedback, then give them UIDs."""
     # Date and Type are found by the headers new gives them, so a sheet without them stops here
-    header_row, columns = header(sheet, {**config["sheet"]["columns"], "date": "Date", "type": "Type"})
-    _columns, rows = read_rows(sheet, config)
+    header_row, columns = header(table, {**config["sheet"]["columns"], "date": "Date", "type": "Type"})
+    _columns, rows = read_rows(table, config)
     number = max((row["row"] for row in rows), default=header_row) + 1
+    # Excel takes a date as a datetime at midnight
+    today = datetime.combine(date.today(), datetime.min.time())
+    changes, added = [], []
     for text in args.feedback:
-        sheet.cell(number, columns["feedback"]).value = text
-        sheet.cell(number, columns["date"]).value = date.today()
-        sheet.cell(number, columns["type"]).value = args.type
+        changes += [(number, columns["feedback"], text), (number, columns["date"], today), (number, columns["type"], args.type)]
+        added.append({"row": number, "id": None})
         number += 1
-    return assign_ids(sheet, config)
+    id_changes, messages = assign_ids(rows + added, columns, config["id_prefix"])
+    return changes + id_changes, messages
 
 
-def layout(path: Path, tab: str) -> tuple[int, int, list[str]]:
-    """Count the tab's dropdowns and conditional formats, and list the workbook's tabs."""
-    book = openpyxl.load_workbook(path)
-    sheet = book[tab]
-    return len(sheet.data_validations.dataValidation), len(sheet.conditional_formatting), book.sheetnames
-
-
-def changed_cells(before: Path, after: Path, tab: str) -> list[str]:
-    """List every cell of the tab whose value differs between two copies of the workbook."""
-    old = openpyxl.load_workbook(before)[tab]
-    new = openpyxl.load_workbook(after)[tab]
-    changes = []
-    for row in range(1, max(old.max_row, new.max_row) + 1):
-        for column in range(1, max(old.max_column, new.max_column) + 1):
-            was, now = old.cell(row, column).value, new.cell(row, column).value
-            if was != now:
-                changes.append(f"{new.cell(row, column).coordinate}: {was!r} -> {now!r}")
-    return changes
-
-
-def guarded_write(config: dict, workbook: Path, args: argparse.Namespace) -> None:
-    """Back the workbook up, apply the command to it or to a copy, then report the changed cells and check the layout survived."""
-    if not args.copy and (workbook.parent / f"~${workbook.name}").exists():
-        raise SystemExit("The workbook is open in Excel on this machine; close it first.")
-    output_dir = Path(config["output_dir"])
+def apply(book: CDispatch, sheet: CDispatch, changes: list[Change], output_dir: Path) -> None:
+    """Back the workbook up, set each cell through Excel, save so co-authors get the change at once, then read each cell back."""
+    # A cloud workbook merges with co-authors only while AutoSave is on; a local file has no co-authors
+    if book.FullName.startswith("https://") and not book.AutoSaveOn:
+        raise SystemExit("AutoSave is off for this cloud workbook, so the change would not merge with co-authors; turn it on in Excel. Nothing saved.")
     output_dir.mkdir(parents=True, exist_ok=True)
-    stamp = f"{datetime.now():%Y%m%d-%H%M%S}"
-    backup = output_dir / f"backup-{stamp}-{workbook.name}"
-    shutil.copy2(workbook, backup)
-    target = workbook
-    if args.copy:
-        target = output_dir / f"copy-{stamp}-{workbook.name}"
-        shutil.copy2(workbook, target)
-
-    tab = config["sheet"]["tab"]
-    before = layout(target, tab)
-    book = openpyxl.load_workbook(target)
-    sheet = book[tab]
-    if args.command == "ids":
-        messages = assign_ids(sheet, config)
-    elif args.command == "add":
-        messages = add_rows(sheet, config, args)
-    else:
-        messages = write_rows(sheet, config, args)
-    book.save(target)
-
-    print(f"{'copy' if args.copy else 'workbook'}: {target}\nbackup: {backup}")
-    for line in messages + changed_cells(backup, target, tab):
-        print(line)
-    after = layout(target, tab)
-    if before != after:
-        raise SystemExit(f"Layout changed {before} -> {after}; restore {backup}.")
+    backup = output_dir / f"backup-{datetime.now():%Y%m%d-%H%M%S}-{book.Name}"
+    book.SaveCopyAs(str(backup.resolve()))
+    print(f"workbook: {book.FullName}\nbackup: {backup}")
+    for number, column, value in changes:
+        sheet.Cells(number, column).Value = value
+    book.Save()
+    wrong = [f"{get_column_letter(column)}{number}" for number, column, value in changes if plain(sheet.Cells(number, column).Value) != value]
+    if wrong:
+        raise SystemExit(f"Excel holds a different value from the one written in {wrong}; check them in the sheet.")
 
 
 def new_workbook(config: dict, path: Path, legacy: bool) -> None:
@@ -226,7 +229,7 @@ def new_workbook(config: dict, path: Path, legacy: bool) -> None:
         for text in (columns["feedback"], columns["response"]):
             sheet[f"{letter[text]}{number}"].alignment = Alignment(wrap_text=True, vertical="top")
 
-    # A custom rule of FALSE makes Excel refuse anything typed; the script writes the file directly and is unaffected
+    # A custom rule of FALSE makes Excel refuse anything typed; validation does not apply to the script's writes
     lock = DataValidation(
         type="custom", formula1="FALSE", showInputMessage=True, promptTitle=columns["id"],
         prompt="Filled in automatically. Quote it when you refer to a row.",
@@ -301,7 +304,7 @@ def main() -> None:
         if name == "rows":
             command.add_argument("--open", action="store_true", help="leave out rows whose status is the closed word")
         else:
-            command.add_argument("--copy", action="store_true", help="write to a copy in output_dir")
+            command.add_argument("--dry-run", action="store_true", help="print the cells this would set and set none")
     add = commands.choices["add"]
     add.add_argument("--type", required=True, choices=["Bug", "Feature request", "Question"], help="the Type column's value for every row added")
     add.add_argument("--feedback", action="append", required=True, help="one row's feedback; repeat for several rows")
@@ -319,16 +322,38 @@ def main() -> None:
     if args.command == "new":
         new_workbook(config, args.workbook, args.legacy)
         return
-    if args.command == "rows":
-        sheet = openpyxl.load_workbook(args.workbook, data_only=True)[config["sheet"]["tab"]]
-        _columns, rows = read_rows(sheet, config)
-        for row in rows:
-            # A blank status counts as open, so only the closed word is left out
-            if args.open and row["status"] == config["statuses"]["closed"]:
-                continue
-            print(json.dumps(row, default=str, ensure_ascii=False))
-        return
-    guarded_write(config, args.workbook, args)
+    book, opened = open_in_excel(args.workbook)
+    try:
+        sheet = book.Worksheets(config["sheet"]["tab"])
+        table = read_table(sheet)
+        if args.command == "rows":
+            _columns, rows = read_rows(table, config)
+            for row in rows:
+                # A blank status counts as open, so only the closed word is left out
+                if args.open and row["status"] == config["statuses"]["closed"]:
+                    continue
+                print(json.dumps(row, default=str, ensure_ascii=False))
+            return
+        if args.command == "ids":
+            columns, rows = read_rows(table, config)
+            changes, messages = assign_ids(rows, columns, config["id_prefix"])
+        elif args.command == "add":
+            changes, messages = add_rows(table, config, args)
+        else:
+            changes, messages = write_rows(table, config, args)
+        for line in messages:
+            print(line)
+        for number, column, value in changes:
+            # A cell beyond the used range is empty, so it is missing from the table
+            before = table.get(number, {}).get(column)
+            print(f"{get_column_letter(column)}{number}: {before!r} -> {value!r}")
+        if args.dry_run or not changes:
+            return
+        apply(book, sheet, changes, Path(config["output_dir"]))
+    finally:
+        # A workbook this run opened is closed again; one the user had open stays open
+        if opened:
+            book.Close(SaveChanges=False)
 
 
 if __name__ == "__main__":

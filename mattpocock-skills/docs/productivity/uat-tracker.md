@@ -2,7 +2,7 @@
 
 `uat-tracker` is how one owner works their share of a client's user-acceptance testing sheet: the spreadsheet where testers log feedback rows, each with a priority and an owner. It turns your open rows into a worklist of groups, raises one tracker issue per group, then works the groups through to fixes, writing each row's status and a one-line, dated response back so the testers can see where things stand.
 
-The sheet stays the client's. Other people edit it while you work, so the skill reads it fresh every time and writes to it only through a bundled script that refuses while the file is open in Excel, backs it up, reads each cell at the moment it writes it, adds responses newest first without touching earlier ones, and checks the sheet's dropdowns and formatting survive. Planning is kept deliberately light, because everything read before the rewind point is carried into every later session's [context window](https://www.aihero.dev/ai-coding-dictionary/context-window).
+The sheet stays the client's. Other people edit it while you work, so the skill reads it fresh every time and writes to it only through a bundled script. The script changes cells through the Excel open on your machine, so its edits merge with the testers' as a person's typing does, instead of saving over the file and losing theirs. It backs the sheet up, prints every cell it will set, adds responses newest first without touching earlier ones, and reads each cell back. Planning is kept deliberately light, because everything read before the rewind point is carried into every later session's [context window](https://www.aihero.dev/ai-coding-dictionary/context-window).
 
 ## When to reach for it
 
@@ -16,7 +16,7 @@ You invoke this by typing `/uat-tracker`, and the agent won't reach for it on it
 
 ## Prerequisites
 
-The project describes its sheet in `docs/agents/uat-tracker.json`: the tab, each column's header, the status words, each priority value and what it means for the project, every owner's code, name, initials and layer, and the tracker project and queue label. When it is missing, the agent proposes one, from the sheet's header row when the sheet exists, and writes it once you agree. A new project can start from the script's `new` command, which builds an empty sheet from that file with every column the script reads. The sheet needs an ID column first, frozen and locked against typing; `new` builds it that way, and an existing sheet gets it by hand once. The script numbers new rows itself. The script needs Python with `openpyxl`, and its output folder, which holds backups of the sheet, must be ignored by git.
+The project describes its sheet in `docs/agents/uat-tracker.json`: the tab, each column's header, the status words, each priority value and what it means for the project, every owner's code, name, initials and layer, and the tracker project and queue label. When it is missing, the agent proposes one, from the sheet's header row when the sheet exists, and writes it once you agree. A new project can start from the script's `new` command, which builds an empty sheet from that file with every column the script reads. The sheet needs an ID column first, frozen and locked against typing; `new` builds it that way, and an existing sheet gets it by hand once. The script numbers new rows itself. The skill is Windows only: the script needs Excel desktop open and Python with `openpyxl` and `pywin32`, and its output folder, which holds backups of the sheet, must be ignored by git.
 
 ## The worklist and the rewind point
 

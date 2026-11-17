@@ -22,19 +22,19 @@ Everything read before the rewind point stays in context for every later session
 
 ## The sheet script
 
-`scripts/sheet.py` reads and writes the sheet. Run it from the project root with a Python that has `openpyxl`:
+`scripts/sheet.py` reads and writes the sheet. The skill is Windows only: run the script from the project root with Excel desktop open and a Python that has `openpyxl` and `pywin32`:
 
 | Command | What it does |
 | --- | --- |
 | `new <config> <workbook> [--legacy]` | Builds an empty sheet from the config: UID in column A, frozen, grey and locked, the config's columns plus Date, Tester, Type, Reference and Links, dropdowns from its statuses, priorities and owners, a How to use tab and a Names tab. `--legacy` adds "Same issue in legacy?" for a project replacing an old system; ask the user which applies. Refuses if the file exists |
 | `rows <config> <workbook> [--open]` | Prints every row as one JSON line: its sheet `row`, UID (`id`), feedback, status, response, priority, owner and issue. `--open` leaves out closed rows |
-| `ids <config> <workbook> [--copy]` | Gives each row that has feedback and no UID the next one: the config's prefix and one more than the largest number in the column, such as `ID_148`, never reused |
-| `add <config> <workbook> --type TYPE --feedback TEXT [--feedback TEXT] [--copy]` | Adds one row per feedback text after the last row, dated today, with the type (Bug, Feature request or Question), and gives each its UID. For rows the user agreed in a grilling; testers add their own in Excel |
-| `write <config> <workbook> --id UID [--id UID] [--status S] [--priority P] [--owner CODE] [--response TEXT --by INITIALS] [--issue URL] [--copy]` | Sets status, priority and owner, adds a response line, links an issue, on each row named by its UID. Priority and owner must be values the config lists |
+| `ids <config> <workbook> [--dry-run]` | Gives each row that has feedback and no UID the next one: the config's prefix and one more than the largest number in the column, such as `ID_148`, never reused |
+| `add <config> <workbook> --type TYPE --feedback TEXT [--feedback TEXT] [--dry-run]` | Adds one row per feedback text after the last row, dated today, with the type (Bug, Feature request or Question), and gives each its UID. For rows the user agreed in a grilling; testers add their own in Excel |
+| `write <config> <workbook> --id UID [--id UID] [--status S] [--priority P] [--owner CODE] [--response TEXT --by INITIALS] [--issue URL] [--dry-run]` | Sets status, priority and owner, adds a response line, links an issue, on each row named by its UID. Priority and owner must be values the config lists |
 
 Name rows by UID everywhere: the `row` number moves whenever someone sorts the sheet, and the UID never does.
 
-Every write refuses while the file is open in Excel, backs the workbook up to the config's `output_dir`, reads each cell at the moment it writes it, and checks that the sheet's dropdowns, conditional formats and tabs survive. A response goes on top of the cell as `- 16 Nov, AB - <text>`, newest first, with earlier entries kept below; the script adds the date and initials. Run each write with `--copy` first: it writes to a copy and prints every cell that changed. Check that list, then run the same command on the sheet.
+Testers edit the sheet while you work, so the script never saves the file itself: replacing the whole file loses whichever edits the cloud copy does not keep. Every command except `new` works through the running Excel, which merges a cell change with co-authors as a person's typing does. It opens the workbook there, or uses it if the user has it open, and refuses a different file of the same name, such as a downloaded copy. A write refuses a cloud workbook with AutoSave off, backs the workbook up to the config's `output_dir` through Excel, prints every cell it sets, sets them, saves, and reads each one back. A response goes on top of the cell as `- 16 Nov, AB - <text>`, newest first, with earlier entries kept below; the script adds the date and initials. Run each write with `--dry-run` first: it prints every cell it would set and sets none. Check that list, then run the same command without it. `new` builds a file nobody has open, so it writes it directly.
 
 A response is one line: what was found and the next step. Anything longer goes in the issue, or in a message drafted for the user to send.
 
@@ -66,7 +66,7 @@ Sheet protection is the wrong tool here, because Excel will not sort a protected
 ## Plan
 
 1. **Who and where.** Ask which owner the user is and where the workbook sits on this machine, unless the stream's `rewind-durable` file already records both, and record the answers there. That file sits at the repository root, beside `rewind-status`, named for the stream as `prepare-rewind` describes; create it when it is missing.
-2. **Read fresh.** Run `ids` (with `--copy` first), then `rows --open`.
+2. **Read fresh.** Run `ids` (with `--dry-run` first), then `rows --open`.
 3. **Take the user's rows.** A row is open unless its status is the config's closed word, so a blank status is open. The worklist holds the open rows owned by the user's code, plus unowned rows that fit the user's layer as the config describes it, and keeps three lists beside it:
    - **Confirm**: unowned rows whose layer is unclear, to settle in the grilling.
    - **Waiting**: the user's rows whose own part is done and which wait only on another owner's part, to close once it is live.

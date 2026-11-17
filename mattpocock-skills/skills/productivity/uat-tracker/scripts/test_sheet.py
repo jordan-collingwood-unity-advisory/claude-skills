@@ -1,13 +1,15 @@
-"""Check sheet.py's guards on a small workbook built in a temporary folder. Run: python test_sheet.py"""
+"""Check sheet.py's guards on a small workbook built in a temporary folder. Run with Excel open: python test_sheet.py"""
 
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import openpyxl
+import win32com.client
 from openpyxl.formatting.rule import CellIsRule
 from openpyxl.styles import PatternFill
 from openpyxl.worksheet.datavalidation import DataValidation
@@ -59,19 +61,19 @@ def run(folder: Path, *arguments: str) -> subprocess.CompletedProcess:
 
 
 def cell(path: Path, coordinate: str) -> object:
-    """Read one cell of the feedback tab."""
+    """Read one cell of the feedback tab from the saved file."""
     return openpyxl.load_workbook(path)["Feedback Log"][coordinate].value
 
 
 def main() -> None:
     """Run each guard against a fresh workbook."""
     with tempfile.TemporaryDirectory() as temp:
-        folder = Path(temp)
+        folder = Path(temp).resolve()
         workbook = build(folder)
         base = ["config.json", "feedback.xlsx"]
 
-        # A copy run changes only the copy
-        result = run(folder, "ids", *base, "--copy")
+        # A dry run prints the change and sets nothing
+        result = run(folder, "ids", *base, "--dry-run")
         assert result.returncode == 0, result.stderr
         assert cell(workbook, "B4") is None and "B4: None -> 'ID_5'" in result.stdout
 
@@ -116,13 +118,17 @@ def main() -> None:
         open_rows = [json.loads(line)["feedback"] for line in run(folder, "rows", *base, "--open").stdout.splitlines()]
         assert open_rows == ["Price wrong", "Logo blurry"], open_rows
 
-        # Excel's lock file stops a real write but not a copy run
-        (folder / "~$feedback.xlsx").write_text("")
-        assert "open in Excel" in run(folder, "write", *base, "--id", "ID_6", "--status", "Closed").stderr
-        assert run(folder, "write", *base, "--id", "ID_6", "--status", "Closed", "--copy").returncode == 0
+        # A different workbook of the same name open in Excel, such as a downloaded copy, stops every command
+        (folder / "other").mkdir()
+        other = folder / "other" / "feedback.xlsx"
+        shutil.copy2(workbook, other)
+        copy_open = win32com.client.GetActiveObject("Excel.Application").Workbooks.Open(str(other))
+        result = run(folder, "write", *base, "--id", "ID_6", "--status", "Closed")
+        copy_open.Close(SaveChanges=False)
+        assert "A different feedback.xlsx is open" in result.stderr, result.stderr
         assert cell(workbook, "C6") == "Open"
 
-        # The layout survived every write
+        # The dropdown and the conditional format survived every write through Excel
         sheet = openpyxl.load_workbook(workbook)["Feedback Log"]
         assert len(sheet.data_validations.dataValidation) == 1 and len(sheet.conditional_formatting) == 1
 
@@ -133,10 +139,20 @@ def main() -> None:
         book = openpyxl.load_workbook(fresh)
         lock = next(rule for rule in book["Feedback Log"].data_validations.dataValidation if "A4" in rule.sqref)
         assert (lock.type, lock.formula1) == ("custom", "FALSE")
+        dropdowns = len(book["Feedback Log"].data_validations.dataValidation)
         book["Feedback Log"]["F4"] = "Total wrong"
         book.save(fresh)
         assert run(folder, "ids", "config.json", "new.xlsx").returncode == 0
         assert cell(fresh, "A4") == "ID_1"
+
+        # add writes the next row dated today, unshifted by any time zone, with its type and the next UID
+        result = run(folder, "add", "config.json", "new.xlsx", "--type", "Bug", "--feedback", "Map missing")
+        assert result.returncode == 0, result.stderr
+        added = [cell(fresh, coordinate) for coordinate in ("A5", "B5", "D5", "F5")]
+        assert added == ["ID_2", datetime.combine(date.today(), datetime.min.time()), "Bug", "Map missing"], added
+
+        # new's dropdowns survived the writes through Excel
+        assert len(openpyxl.load_workbook(fresh)["Feedback Log"].data_validations.dataValidation) == dropdowns
     print("sheet.py: all checks passed")
 
 
