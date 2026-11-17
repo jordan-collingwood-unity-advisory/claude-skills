@@ -92,8 +92,8 @@ Each later session takes the next group from the worklist in the `rewind-durable
 2. **Say the problem.** In plain words, what each row reports, before any evidence.
 3. **Investigate.** Read the code, the saved data and how the old system behaved. Measure a subagent's inference before recommending on it.
 4. **Say the cause.** Explain what happened and why, in depth and in plain words. Before answering a row as cannot-reproduce, check it against the old behaviour yourself. A data problem goes back to the client through the row's response, with no code.
-5. **Grill.** Call the Skill tool with "grilling" on whatever is still open, and record each decision the way the project records them.
-6. **Build and ship** as the project's `CLAUDE.md` says: tests, review, merge, deploy. Report every test failure found, whoever caused it.
+5. **Build.** When the group needs code, call the Skill tool with "implement", handing it the group's issue and the cause from step 4. It explains the fix, grills whatever is still open, records each decision, builds test-first, reviews and commits. The worklist's rewind point stands for the series, so `implement` keeps it and builds the group in one part. A group whose rows are all data problems or answered questions has nothing to build and goes on to step 7.
+6. **Ship** as the project's `CLAUDE.md` says: merge, deploy. Report every test failure found, whoever caused it.
 7. **Hand over the other halves.** For each part another owner builds, raise a tracker issue or comment on the group's issue, saying what changed and what they need to do, and draft a message for the user to send them.
 8. **Answer the rows.** Write each row's response and status. A row closes only when every owner's half is live where the testers test; until then it stays in progress with its response.
 9. **Close the issue.** When every row in the group is closed, post a short Done / Needed comment on the group's issue and move it to done.

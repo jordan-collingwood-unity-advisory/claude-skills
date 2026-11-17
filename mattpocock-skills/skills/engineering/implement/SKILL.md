@@ -1,7 +1,6 @@
 ---
 name: implement
-description: "Carry a tracker issue, or the next free ticket in a scope, to done."
-disable-model-invocation: true
+description: "Carry a tracker issue, or the next free ticket in a scope, to done: explain it, grill what is open, build test-first, review and commit. Use when the user asks to implement, build or fix a named tracker issue or a scope of tickets, or when another skill hands over an issue to build."
 ---
 
 Carry a tracker issue, or the next free ticket in a scope, to done.
@@ -10,7 +9,7 @@ Carry a tracker issue, or the next free ticket in a scope, to done.
 
 First, before anything else, call the Skill tool three times, for "grilling", "domain-modeling" and "design-decision". Every question to the user follows `grilling`'s format.
 
-If the user passes a ticket reference, fetch it from the issue tracker with its comments and blocking links, and state its title. If the user passes a scope instead (a label, a milestone, a parent issue), take its **frontier**: the open ticket in that scope whose blockers are all done, because the order of work lives in the tracker's blocking links and nowhere else. If the reference is ambiguous, or the frontier holds more than one ticket or none, ask.
+If the user, or the skill that called this one, passes a ticket reference, fetch it from the issue tracker with its comments and blocking links, and state its title. If the user passes a scope instead (a label, a milestone, a parent issue), take its **frontier**: the open ticket in that scope whose blockers are all done, because the order of work lives in the tracker's blocking links and nowhere else. If the reference is ambiguous, or the frontier holds more than one ticket or none, ask.
 
 The glossary, ADR folder and design decision register sit at their defaults (`GLOSSARY.md`, `docs/adr/`, `docs/ddr/register.csv`) unless the project's `docs/agents/domain.md` names another place. Read every ADR and DDR the ticket cites, plus those whose nouns (module, element, data field) the ticket touches. Find the existing code to reuse or extend, with `file:line`.
 
@@ -29,6 +28,8 @@ Record each answer before the edit that implements it. Most become DDRs; one tha
 ## 3. Set the rewind point
 
 The user may rewind the session to save tokens, running `/prepare-rewind` before the rewind and `/carry-on-rewind` after it, so split the work at a common point.
+
+- **A point already stands** when the session holds a `**Rewind point.**` line, set earlier by the user or by the skill that called this one (such as a worklist's point in `uat-tracker`). Keep it when it clearly still holds for this build, say so, and build in one part that ends in a commit, since each rewind returns there. When it is unclear, ask the user whether to keep it or set a new one here, and follow the answer through the bullets below.
 
 - Steps 1 and 2 are the exploration. Finish them, every agent and check included, before any build work.
 - Once the answers are in, state the **rewind point** in your last message before the build starts, on a line of its own that opens with `**Rewind point.**`, followed by a sentence saying the research and grilling above it hold for the session. `prepare-rewind` finds that line in the session log, so never write it anywhere else. Before a rewind the user runs `/prepare-rewind`, rewinds to their own message that follows yours, and sends `/carry-on-rewind` in its place, so your message stays.

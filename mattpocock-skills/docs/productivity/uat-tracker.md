@@ -39,4 +39,4 @@ No. A mention notifies only when a signed-in person posts it as a comment in Exc
 
 ## Where it fits
 
-A series-long workflow for the testing phase of a project, run once per series of sessions. Each group's work leans on [grilling](https://aihero.dev/skills-grilling) for decisions and on [prepare-rewind](https://aihero.dev/skills-prepare-rewind) and [carry-on-rewind](https://aihero.dev/skills-carry-on-rewind) to move between sessions, and [ask-matt](https://aihero.dev/skills-ask-matt) maps the rest of the set.
+A series-long workflow for the testing phase of a project, run once per series of sessions. Once a group's cause is known, its fix goes to [implement](https://aihero.dev/skills-implement), which explains it, grills what is open, builds it test-first, reviews and commits, keeping the worklist's rewind point; `uat-tracker` keeps the sheet, the issues and the handovers. The series leans on [prepare-rewind](https://aihero.dev/skills-prepare-rewind) and [carry-on-rewind](https://aihero.dev/skills-carry-on-rewind) to move between sessions, and [ask-matt](https://aihero.dev/skills-ask-matt) maps the rest of the set.
